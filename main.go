@@ -80,6 +80,7 @@ func main() {
 	<-sc
 
 	dg.Close()
+	twScraper.Logout()
 
 }
 

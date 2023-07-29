@@ -151,6 +151,12 @@ func compressVideo(file *os.File, guild *discordgo.Guild) {
 		maxSize = 100 // MB
 	}
 
+	// check if video is smaller than max size
+	fileInfo, _ := file.Stat()
+	if fileInfo.Size() < int64(maxSize*1000000) {
+		return
+	}
+
 	// make new tmp file
 	f, err := os.CreateTemp("", "twitch*.mp4")
 	if err != nil {
