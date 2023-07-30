@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	discordgo "github.com/bwmarrin/discordgo"
 	twitterscraper "github.com/n0madic/twitter-scraper"
+	"github.com/tidwall/gjson"
 )
 
 func handleTwitter(s *discordgo.Session, m *discordgo.MessageCreate, scraper *twitterscraper.Scraper, u *url.URL) {
@@ -23,7 +25,7 @@ func handleTwitter(s *discordgo.Session, m *discordgo.MessageCreate, scraper *tw
 		return
 	}
 
-	if len(tweet.Videos) == 0 {
+	if len(tweet.Videos) == 0 && len(tweet.GIFs) == 0 {
 		return
 	}
 
@@ -37,42 +39,60 @@ func handleTwitter(s *discordgo.Session, m *discordgo.MessageCreate, scraper *tw
 }
 
 func handleInstagram(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) {
-	jsonData := getInstagramMedia(u.String())
+	// get id from url
+	id := strings.Split(u.Path, "/")[2]
 
-	if jsonData["product_type"] == "carousel_container" {
-		// collect all images into one message and all videos into another
-		imageFiles, videoFiles := getInstagramCarouselFiles(jsonData)
-		if len(imageFiles) > 0 {
-			s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-				Files:      imageFiles,
-				Components: []discordgo.MessageComponent{deleteMessageActionRow},
-				Reference:  m.Reference(),
-			})
-		}
-		if len(videoFiles) > 0 {
-			s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-				Files:      videoFiles,
-				Components: []discordgo.MessageComponent{deleteMessageActionRow},
-				Reference:  m.Reference(),
-			})
-		}
-	} else {
-		if jsonData["video_versions"] != nil {
-			videoFile := getInstagramVideoFile(jsonData["video_versions"].([]interface{})[0].(map[string]interface{})["url"].(string))
-			s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-				Files:      videoFile,
-				Components: []discordgo.MessageComponent{deleteMessageActionRow},
-				Reference:  m.Reference(),
-			})
-		} else {
-			imageFile := getInstagramImageFile(jsonData["image_versions"].(map[string]interface{})["candidates"].([]interface{})[0].(map[string]interface{})["url"].(string))
-			s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-				Files:      imageFile,
-				Components: []discordgo.MessageComponent{deleteMessageActionRow},
-				Reference:  m.Reference(),
-			})
+	url := "https://instagram-scraper-2022.p.rapidapi.com/ig/post_info/?shortcode=" + id
+
+	req, _ := http.NewRequest("GET", url, nil)
+
+	req.Header.Add("X-RapidAPI-Key", os.Getenv("RAPIDAPI_KEY"))
+	req.Header.Add("X-RapidAPI-Host", "instagram-scraper-2022.p.rapidapi.com")
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+
+	images, videos := getInstagramLinks(string(body))
+
+	imageFiles, videoFiles := getInstagramFiles(images, videos)
+
+	s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+		Files:      append(imageFiles, videoFiles...),
+		Components: []discordgo.MessageComponent{deleteMessageActionRow},
+		Reference:  m.Reference(),
+	})
+}
+
+func getInstagramLinks(body string) (images []string, videos []string) {
+	mediatype := gjson.Get(body, "__typename").String()
+	imageLinks := []string{}
+	videoLinks := []string{}
+	if mediatype == "GraphVideo" {
+		link := gjson.Get(body, "video_url").String()
+		videoLinks = append(videoLinks, link)
+	}
+	if mediatype == "GraphImage" {
+		link := gjson.Get(body, "display_url").String()
+		imageLinks = append(imageLinks, link)
+	}
+	if mediatype == "GraphSidecar" {
+		sidecarLinks := gjson.Get(body, "edge_sidecar_to_children.edges").Array()
+		for _, link := range sidecarLinks {
+			if link.Get("node.__typename").String() == "GraphVideo" {
+				videoLinks = append(videoLinks, link.Get("node.video_url").String())
+			}
+			if link.Get("node.__typename").String() == "GraphImage" {
+				imageLinks = append(imageLinks, link.Get("node.display_url").String())
+			}
 		}
 	}
+
+	return imageLinks, videoLinks
 }
 
 func handleReddit(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) {
@@ -107,6 +127,7 @@ func handleReddit(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 	videoLink := getRedditVideoLink(u.String())
 	if strings.Contains(videoLink, "v.redd.it") {
 		videoFile := getRedditVideoFile(videoLink)
+		fmt.Println(videoFile)
 		s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 			Files:      videoFile,
 			Components: []discordgo.MessageComponent{deleteMessageActionRow},

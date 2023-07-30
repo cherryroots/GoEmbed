@@ -1,13 +1,16 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
 	"sync"
 
 	discordgo "github.com/bwmarrin/discordgo"
+	mpd "github.com/mc2soft/mpd"
 	twitterscraper "github.com/n0madic/twitter-scraper"
 )
 
@@ -33,7 +36,7 @@ func DownloadFile(filepath string, url string) error {
 }
 
 func getTwitterVideoFiles(tweet *twitterscraper.Tweet) []*discordgo.File {
-	videoFiles := make([]*discordgo.File, 0)
+	files := make([]*discordgo.File, 0)
 
 	for _, video := range tweet.Videos {
 		// Create a temp file starting with twitter and ending with .mp4
@@ -52,7 +55,7 @@ func getTwitterVideoFiles(tweet *twitterscraper.Tweet) []*discordgo.File {
 			continue
 		}
 
-		videoFiles = append(videoFiles, &discordgo.File{
+		files = append(files, &discordgo.File{
 			Name:   "video.mp4",
 			Reader: file,
 		})
@@ -60,80 +63,111 @@ func getTwitterVideoFiles(tweet *twitterscraper.Tweet) []*discordgo.File {
 		defer os.Remove(f.Name())
 	}
 
-	return videoFiles
-}
+	for _, gif := range tweet.GIFs {
+		// Create a temp file starting with twitter and ending with .mp4
+		f, err := os.CreateTemp("", "twitter*.mp4")
+		if err != nil {
+			continue
+		}
 
-func getInstagramVideoFile(url string) []*discordgo.File {
-	// Create a temp file starting with twitter and ending with .mp4
-	f, err := os.CreateTemp("", "instagram*.mp4")
-	if err != nil {
-		return nil
-	}
+		err = DownloadFile(f.Name(), gif.URL)
+		if err != nil {
+			continue
+		}
 
-	err = DownloadFile(f.Name(), url)
-	if err != nil {
-		return nil
-	}
+		// convert mp4 to gif
+		cmd := exec.Command("ffmpeg",
+			"-i", f.Name(),
+			"-f", "gif",
+			f.Name()+".gif")
+		err = cmd.Run()
+		if err != nil {
+			fmt.Println(err)
+		}
 
-	file, err := os.Open(f.Name())
-	if err != nil {
-		return nil
-	}
+		file, err := os.Open(f.Name() + ".gif")
+		if err != nil {
+			continue
+		}
 
-	videoFile := []*discordgo.File{
-		{
-			Name:   "video.mp4",
+		files = append(files, &discordgo.File{
+			Name:   "video.gif",
 			Reader: file,
-		},
+		})
+
+		defer os.Remove(f.Name())
 	}
 
-	defer os.Remove(f.Name())
-
-	return videoFile
-}
-
-func getInstagramImageFile(url string) []*discordgo.File {
-	// Create a temp file starting with twitter and ending with .mp4
-	f, err := os.CreateTemp("", "instagram*.jpg")
-	if err != nil {
-		return nil
-	}
-
-	err = DownloadFile(f.Name(), url)
-	if err != nil {
-		return nil
-	}
-
-	file, err := os.Open(f.Name())
-	if err != nil {
-		return nil
-	}
-
-	imageFile := []*discordgo.File{
-		{
-			Name:   "image.jpg",
-			Reader: file,
-		},
-	}
-
-	defer os.Remove(f.Name())
-
-	return imageFile
+	return files
 }
 
 func getRedditVideoFile(url string) []*discordgo.File {
 	// Create a temp file starting with twitter and ending with .mp4
-	f, err := os.CreateTemp("", "reddit*.mp4")
+	mpdf, err := os.CreateTemp("", "reddit*.mpd")
+	if err != nil {
+		return nil
+	}
+	vf, err := os.CreateTemp("", "reddit*.mp4")
+	if err != nil {
+		return nil
+	}
+	af, err := os.CreateTemp("", "reddit*.mp4")
+	if err != nil {
+		return nil
+	}
+	cf, err := os.CreateTemp("", "reddit*.mp4")
 	if err != nil {
 		return nil
 	}
 
-	err = DownloadFile(f.Name(), url)
+	err = DownloadFile(mpdf.Name(), url)
 	if err != nil {
 		return nil
 	}
 
-	file, err := os.Open(f.Name())
+	mpdfile, err := os.ReadFile(mpdf.Name())
+	if err != nil {
+		return nil
+	}
+	mp := new(mpd.MPD)
+	mp.Decode(mpdfile)
+	period := mp.Period[0]
+	// get the last representation in each AdaptationSet
+	for _, as := range period.AdaptationSets {
+		as.Representations = as.Representations[len(as.Representations)-1:]
+	}
+
+	// remove the part after the last / in the url
+	re := regexp.MustCompile(`(.*/)[^/]*$`)
+	url = re.ReplaceAllString(url, "$1")
+
+	// download adaptionsets 0 as video vf and adaptionsets 1 as audio af
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		err = DownloadFile(vf.Name(), url+*period.AdaptationSets[0].Representations[0].BaseURL)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		err = DownloadFile(af.Name(), url+*period.AdaptationSets[1].Representations[0].BaseURL)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}()
+	wg.Wait()
+
+	// combine the two files into one
+	cmd := exec.Command("ffmpeg", "-i", vf.Name(), "-i", af.Name(), "-c", "copy", cf.Name())
+	err = cmd.Run()
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	file, err := os.Open(cf.Name())
 	if err != nil {
 		return nil
 	}
@@ -145,9 +179,13 @@ func getRedditVideoFile(url string) []*discordgo.File {
 		},
 	}
 
-	defer os.Remove(f.Name())
+	defer os.Remove(mpdf.Name())
+	defer os.Remove(vf.Name())
+	defer os.Remove(af.Name())
+	defer os.Remove(cf.Name())
 
 	return videoFile
+
 }
 
 func getTwitchClipFile(vodid string, guild *discordgo.Guild) []*discordgo.File {
@@ -188,21 +226,69 @@ func getTwitchClipFile(vodid string, guild *discordgo.Guild) []*discordgo.File {
 	return videoFile
 }
 
-func getInstagramCarouselFiles(carousel map[string]interface{}) ([]*discordgo.File, []*discordgo.File) {
+func getInstagramFiles(images []string, videos []string) ([]*discordgo.File, []*discordgo.File) {
 	imageFiles := make([]*discordgo.File, 0)
 	videoFiles := make([]*discordgo.File, 0)
 
 	var wg sync.WaitGroup
-	for _, element := range carousel["carousel_media"].([]map[string]interface{}) {
-		wg.Add(1)
-		go func(element map[string]interface{}) {
+	wg.Add(len(images) + len(videos))
+
+	for _, image := range images {
+		go func(image string) {
 			defer wg.Done()
-			if element["video_versions"] != nil {
-				videoFiles = append(videoFiles, getInstagramVideoFile(element["video_versions"].([]interface{})[0].(map[string]interface{})["url"].(string))...)
-			} else {
-				imageFiles = append(imageFiles, getInstagramImageFile(element["image_versions"].(map[string]interface{})["candidates"].([]interface{})[0].(map[string]interface{})["url"].(string))...)
+			// Create a temp file starting with twitter and ending with .mp4
+			f, err := os.CreateTemp("", "instagram*.jpg")
+			if err != nil {
+				return
 			}
-		}(element)
+
+			err = DownloadFile(f.Name(), image)
+			if err != nil {
+				return
+			}
+
+			file, err := os.Open(f.Name())
+			if err != nil {
+				return
+
+			}
+
+			imageFiles = append(imageFiles, &discordgo.File{
+				Name:   "image.jpg",
+				Reader: file,
+			})
+
+			defer os.Remove(f.Name())
+		}(image)
+	}
+
+	for _, video := range videos {
+		go func(video string) {
+			defer wg.Done()
+			// Create a temp file starting with twitter and ending with .mp4
+			f, err := os.CreateTemp("", "instagram*.mp4")
+			if err != nil {
+				return
+			}
+
+			err = DownloadFile(f.Name(), video)
+			if err != nil {
+				return
+			}
+
+			file, err := os.Open(f.Name())
+			if err != nil {
+				return
+
+			}
+
+			videoFiles = append(videoFiles, &discordgo.File{
+				Name:   "video.mp4",
+				Reader: file,
+			})
+
+			defer os.Remove(f.Name())
+		}(video)
 	}
 
 	wg.Wait()
