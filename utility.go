@@ -99,6 +99,17 @@ func getInstagramMedia(url string) map[string]interface{} {
 	}
 }
 
+func getTikTokID(url string) string {
+	// parse an url like : https://www.tiktok.com/@therock/video/6817233442149108486?lang=en
+	// to get the video id : 6817233442149108486
+	regex := regexp.MustCompile(`(?m)\/video\/([0-9]+)`)
+	result := regex.FindStringSubmatch(url)
+	if len(result) > 1 {
+		return result[1]
+	}
+	return ""
+}
+
 func getRedditVideoLink(url string) string {
 	// Fetch data from Reddit post
 	client := &http.Client{}
@@ -128,6 +139,37 @@ func getRedditVideoLink(url string) string {
 		return result[1]
 	}
 	return ""
+}
+
+func getTikTokVideoLink(id string) string {
+	apiUrl := "https://api16-normal-c-useast1a.tiktokv.com/aweme/v1/feed/?aweme_id=" + id
+	// get api response
+	client := &http.Client{}
+	req, _ := http.NewRequest("GET", apiUrl, nil)
+	req.Header.Add("user-agent", "'User-Agent', 'TikTok 26.2.0 rv:262018 (iPhone; iOS 14.4.2; en_US) Cronet'")
+	req.Header.Add("sec-fetch-site", "same-origin")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// parse the response json
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println(err)
+	}
+	var jsonData map[string]interface{}
+	err = json.Unmarshal(body, &jsonData)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	mediaUrl := jsonData["aweme_list"].([]interface{})[0].(map[string]interface{})["video"].(map[string]interface{})["play_addr"].(map[string]interface{})["url_list"].([]interface{})[0].(string)
+
+	defer resp.Body.Close()
+
+	return mediaUrl
 }
 
 func GetId(url string) string {

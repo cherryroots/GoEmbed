@@ -82,6 +82,8 @@ func main() {
 	dg.Close()
 	twScraper.Logout()
 
+	defer fmt.Print("Bot is now offline.")
+
 }
 
 func handleUrl(s *discordgo.Session, m *discordgo.MessageCreate, scraper *twitterscraper.Scraper, link string) {
@@ -103,6 +105,11 @@ func handleUrl(s *discordgo.Session, m *discordgo.MessageCreate, scraper *twitte
 
 	if u.Host == "clips.twitch.tv" || u.Host == "www.twitch.tv" {
 		handleTwitch(s, m, u)
+	}
+
+	//handle tiktok
+	if u.Host == "www.tiktok.com" || u.Host == "vm.tiktok.com" {
+		handleTiktok(s, m, u)
 	}
 }
 

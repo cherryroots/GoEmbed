@@ -208,3 +208,32 @@ func getInstagramCarouselFiles(carousel map[string]interface{}) ([]*discordgo.Fi
 	wg.Wait()
 	return imageFiles, videoFiles
 }
+
+func getTikTokFile(url string) []*discordgo.File {
+	// Create a temp file starting with twitter and ending with .mp4
+	f, err := os.CreateTemp("", "tiktok*.mp4")
+	if err != nil {
+		return nil
+	}
+
+	err = DownloadFile(f.Name(), url)
+	if err != nil {
+		return nil
+	}
+
+	file, err := os.Open(f.Name())
+	if err != nil {
+		return nil
+	}
+
+	videoFile := []*discordgo.File{
+		{
+			Name:   "video.mp4",
+			Reader: file,
+		},
+	}
+
+	defer os.Remove(f.Name())
+
+	return videoFile
+}

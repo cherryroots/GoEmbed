@@ -161,3 +161,39 @@ func handleTwitch(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 		})
 	}
 }
+
+func handleTiktok(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) {
+	// follow url and get the redirect url
+	if u.Host == "vm.tiktok.com" {
+		client := &http.Client{}
+		req, _ := http.NewRequest("GET", u.String(), nil)
+		req.Header.Add("user-agent", os.Getenv("USERAGENT"))
+		req.Header.Add("sec-fetch-site", "same-origin")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			fmt.Println(err)
+		}
+		defer resp.Body.Close()
+
+		u, err = url.Parse(resp.Request.URL.String())
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+
+	videoId := getTikTokID(u.String())
+
+	// get the video linl
+	mediaUrl := getTikTokVideoLink(videoId)
+
+	// get the video file
+	videoFile := getTikTokFile(mediaUrl)
+
+	// send message and handle filesize error
+	s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+		Files:      videoFile,
+		Components: []discordgo.MessageComponent{deleteMessageActionRow},
+		Reference:  m.Reference(),
+	})
+}
