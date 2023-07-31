@@ -91,11 +91,11 @@ func handleUrl(s *discordgo.Session, m *discordgo.MessageCreate, scraper *twitte
 	if err != nil {
 		return
 	}
-	if u.Host == "twitter.com" {
+	if u.Host == "twitter.com" || u.Host == "mobile.twitter.com" || u.Host == "www.twitter.com" {
 		handleTwitter(s, m, scraper, u)
 	}
 
-	if u.Host == "www.instagram.com" {
+	if u.Host == "www.instagram.com" || u.Host == "instagram.com" {
 		handleInstagram(s, m, u)
 	}
 
@@ -103,12 +103,12 @@ func handleUrl(s *discordgo.Session, m *discordgo.MessageCreate, scraper *twitte
 		handleReddit(s, m, u)
 	}
 
-	if u.Host == "clips.twitch.tv" || u.Host == "www.twitch.tv" {
+	if u.Host == "clips.twitch.tv" || u.Host == "www.twitch.tv" || u.Host == "twitch.tv" {
 		handleTwitch(s, m, u)
 	}
 
 	//handle tiktok
-	if u.Host == "www.tiktok.com" || u.Host == "vm.tiktok.com" {
+	if u.Host == "www.tiktok.com" || u.Host == "tiktok.com" || u.Host == "vm.tiktok.com" {
 		handleTiktok(s, m, u)
 	}
 }
