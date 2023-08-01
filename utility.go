@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	discordgo "github.com/bwmarrin/discordgo"
+	"github.com/tidwall/gjson"
 )
 
 func getTikTokID(url string) string {
@@ -54,6 +55,33 @@ func getRedditVideoLink(url string) string {
 		return result[1]
 	}
 	return ""
+}
+
+func getInstagramPostLinks(body string) (images []string, videos []string) {
+	mediatype := gjson.Get(body, "__typename").String()
+	imageLinks := []string{}
+	videoLinks := []string{}
+	if mediatype == "GraphVideo" {
+		link := gjson.Get(body, "video_url").String()
+		videoLinks = append(videoLinks, link)
+	}
+	if mediatype == "GraphImage" {
+		link := gjson.Get(body, "display_url").String()
+		imageLinks = append(imageLinks, link)
+	}
+	if mediatype == "GraphSidecar" {
+		sidecarLinks := gjson.Get(body, "edge_sidecar_to_children.edges").Array()
+		for _, link := range sidecarLinks {
+			if link.Get("node.__typename").String() == "GraphVideo" {
+				videoLinks = append(videoLinks, link.Get("node.video_url").String())
+			}
+			if link.Get("node.__typename").String() == "GraphImage" {
+				imageLinks = append(imageLinks, link.Get("node.display_url").String())
+			}
+		}
+	}
+
+	return imageLinks, videoLinks
 }
 
 func getTikTokVideoLink(id string) string {

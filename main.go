@@ -107,7 +107,6 @@ func handleUrl(s *discordgo.Session, m *discordgo.MessageCreate, scraper *twitte
 		handleTwitch(s, m, u)
 	}
 
-	//handle tiktok
 	if u.Host == "www.tiktok.com" || u.Host == "tiktok.com" || u.Host == "vm.tiktok.com" {
 		handleTiktok(s, m, u)
 	}

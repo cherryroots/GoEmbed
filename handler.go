@@ -145,33 +145,6 @@ func handleInstagram(s *discordgo.Session, m *discordgo.MessageCreate, u *url.UR
 	})
 }
 
-func getInstagramPostLinks(body string) (images []string, videos []string) {
-	mediatype := gjson.Get(body, "__typename").String()
-	imageLinks := []string{}
-	videoLinks := []string{}
-	if mediatype == "GraphVideo" {
-		link := gjson.Get(body, "video_url").String()
-		videoLinks = append(videoLinks, link)
-	}
-	if mediatype == "GraphImage" {
-		link := gjson.Get(body, "display_url").String()
-		imageLinks = append(imageLinks, link)
-	}
-	if mediatype == "GraphSidecar" {
-		sidecarLinks := gjson.Get(body, "edge_sidecar_to_children.edges").Array()
-		for _, link := range sidecarLinks {
-			if link.Get("node.__typename").String() == "GraphVideo" {
-				videoLinks = append(videoLinks, link.Get("node.video_url").String())
-			}
-			if link.Get("node.__typename").String() == "GraphImage" {
-				imageLinks = append(imageLinks, link.Get("node.display_url").String())
-			}
-		}
-	}
-
-	return imageLinks, videoLinks
-}
-
 func handleReddit(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) {
 
 	// remove query params
