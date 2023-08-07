@@ -161,7 +161,7 @@ func getRedditVideoFile(url string) []*discordgo.File {
 	wg.Wait()
 
 	// combine the two files into one
-	cmd := exec.Command("ffmpeg", "-i", vf.Name(), "-i", af.Name(), "-c", "copy", cf.Name())
+	cmd := exec.Command("ffmpeg", "-i", vf.Name(), "-i", af.Name(), "-c", "copy", "-y", cf.Name())
 	err = cmd.Run()
 	if err != nil {
 		fmt.Println(err)
