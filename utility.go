@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"regexp"
@@ -26,10 +27,23 @@ func getTikTokID(url string) string {
 	return ""
 }
 
-func getRedditVideoLink(url string) string {
+func getTwitchVodId(url *url.URL) string {
+	var vodid string
+	if url.Host == "clips.twitch.tv" {
+		vodid = strings.Split(url.Path, "/")[1]
+	} else if url.Host == "www.twitch.tv" {
+		if !strings.Contains(url.Path, "/clip/") {
+			return ""
+		}
+		vodid = strings.Split(url.Path, "/")[3]
+	}
+	return vodid
+}
+
+func getRedditVideoLink(u *url.URL) *url.URL {
 	// Fetch data from Reddit post
 	client := &http.Client{}
-	req, _ := http.NewRequest("GET", url+".json", nil)
+	req, _ := http.NewRequest("GET", u.String()+".json", nil)
 	req.Header.Add("user-agent", os.Getenv("USERAGENT"))
 	req.Header.Add("sec-fetch-site", "same-origin")
 
@@ -46,15 +60,18 @@ func getRedditVideoLink(url string) string {
 	regex := regexp.MustCompile(`(?m)clips\.twitch\.tv\/([a-zA-Z0-9_-]+)|(?m)www\.twitch\.tv\/[a-zA-Z0-9_-]+\/clip\/([a-zA-Z0-9_-]+)`)
 	result := regex.FindStringSubmatch(string(body))
 	if len(result) > 1 {
-		return result[0]
+		fullUrl := "https://" + result[0]
+		url, _ := url.Parse(fullUrl)
+		return url
 	}
 
 	regex = regexp.MustCompile(`(?m)dash_url\": \"(.*?)\"`)
 	result = regex.FindStringSubmatch(string(body))
 	if len(result) > 1 {
-		return result[1]
+		url, _ := url.Parse(result[1])
+		return url
 	}
-	return ""
+	return nil
 }
 
 func getInstagramPostLinks(body string) (images []string, videos []string) {

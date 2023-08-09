@@ -174,18 +174,18 @@ func handleReddit(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 		fmt.Println(err)
 	}
 
-	videoLink := getRedditVideoLink(u.String())
-	if strings.Contains(videoLink, "v.redd.it") {
-		videoFile := getRedditVideoFile(videoLink)
-		fmt.Println(videoFile)
+	videoLink := getRedditVideoLink(u)
+	if videoLink.Host == "v.redd.it" {
+		videoFile := getRedditVideoFile(videoLink.String())
 		s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 			Files:      videoFile,
 			Components: []discordgo.MessageComponent{deleteMessageActionRow},
 			Reference:  m.Reference(),
 		})
 	}
-	if strings.Contains(videoLink, "twitch.tv") {
-		videoFile := getTwitchClipFile(strings.Split(videoLink, "/")[3], guild)
+	if videoLink.Host == "www.twitch.tv" || videoLink.Host == "clips.twitch.tv" {
+		vodid := getTwitchVodId(videoLink)
+		videoFile := getTwitchClipFile(vodid, guild)
 		s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 			Files:      videoFile,
 			Components: []discordgo.MessageComponent{deleteMessageActionRow},
@@ -195,42 +195,21 @@ func handleReddit(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 }
 
 func handleTwitch(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) {
-	if u.Host == "clips.twitch.tv" {
-		vodid := strings.Split(u.Path, "/")[1]
+	vodid := getTwitchVodId(u)
 
-		guild, err := s.Guild(m.GuildID)
-		if err != nil {
-			fmt.Println(err)
-		}
-
-		videoFile := getTwitchClipFile(vodid, guild)
-
-		// send message and handle filesize error
-		s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Files:      videoFile,
-			Components: []discordgo.MessageComponent{deleteMessageActionRow},
-			Reference:  m.Reference(),
-		})
-	} else if u.Host == "www.twitch.tv" {
-		if !strings.Contains(u.Path, "/clip/") {
-			return
-		}
-		vodid := strings.Split(u.Path, "/")[3]
-
-		guild, err := s.Guild(m.GuildID)
-		if err != nil {
-			fmt.Println(err)
-		}
-
-		videoFile := getTwitchClipFile(vodid, guild)
-
-		// send message and handle filesize error
-		s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Files:      videoFile,
-			Components: []discordgo.MessageComponent{deleteMessageActionRow},
-			Reference:  m.Reference(),
-		})
+	guild, err := s.Guild(m.GuildID)
+	if err != nil {
+		fmt.Println(err)
 	}
+
+	videoFile := getTwitchClipFile(vodid, guild)
+
+	// send message and handle filesize error
+	s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+		Files:      videoFile,
+		Components: []discordgo.MessageComponent{deleteMessageActionRow},
+		Reference:  m.Reference(),
+	})
 }
 
 func handleTiktok(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) {
