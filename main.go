@@ -91,7 +91,12 @@ func handleUrl(s *discordgo.Session, m *discordgo.MessageCreate, scraper *twitte
 	if err != nil {
 		return
 	}
+
 	if u.Host == "twitter.com" || u.Host == "mobile.twitter.com" || u.Host == "www.twitter.com" {
+		handleTwitter(s, m, scraper, u)
+	}
+
+	if u.Host == "x.com" || u.Host == "mobile.x.com" || u.Host == "www.x.com" {
 		handleTwitter(s, m, scraper, u)
 	}
 
