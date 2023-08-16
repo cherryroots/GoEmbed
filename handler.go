@@ -175,6 +175,9 @@ func handleReddit(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 	}
 
 	videoLink := getRedditVideoLink(u)
+	if videoLink == nil {
+		return
+	}
 	if videoLink.Host == "v.redd.it" {
 		videoFile := getRedditVideoFile(videoLink.String())
 		s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
