@@ -63,6 +63,9 @@ func handleInstagram(s *discordgo.Session, m *discordgo.MessageCreate, u *url.UR
 		userId := gjson.Get(string(body), "id").String()
 		// retry until we get a response with images or videos (sometimes it takes a few tries)
 
+		// sleep for 1 second
+		time.Sleep(1 * time.Second)
+
 		for i := 0; i < 5; i++ {
 			url = fmt.Sprintf("https://instagram-scraper-2022.p.rapidapi.com/ig/get_stories_hd/?id_user=%s&id_stories=%s", userId, postid)
 			req, _ = http.NewRequest("GET", url, nil)
@@ -98,9 +101,8 @@ func handleInstagram(s *discordgo.Session, m *discordgo.MessageCreate, u *url.UR
 					time.Sleep(5 * time.Second)
 					s.ChannelMessageDelete(msg.ChannelID, msg.ID)
 					break
-				} else {
-					break
 				}
+				break
 			}
 		}
 
