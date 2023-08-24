@@ -143,7 +143,7 @@ func GetId(url string) string {
 func compressVideo(file *os.File, guild *discordgo.Guild) {
 	var maxSize int
 	if guild.PremiumTier == 0 {
-		maxSize = 25 // MB
+		maxSize = 8 // MB
 	} else if guild.PremiumTier == 1 {
 		maxSize = 25 // MB
 	} else if guild.PremiumTier == 2 {

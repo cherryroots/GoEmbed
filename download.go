@@ -120,15 +120,17 @@ func getRedditVideoFile(url string) []*discordgo.File {
 		return nil
 	}
 
+	filenames := []string{vf.Name(), af.Name(), cf.Name()}
+
 	err = DownloadFile(mpdf.Name(), url)
 	if err != nil {
 		return nil
 	}
-
 	mpdfile, err := os.ReadFile(mpdf.Name())
 	if err != nil {
 		return nil
 	}
+
 	mp := new(mpd.MPD)
 	mp.Decode(mpdfile)
 	period := mp.Period[0]
@@ -141,30 +143,36 @@ func getRedditVideoFile(url string) []*discordgo.File {
 	re := regexp.MustCompile(`(.*/)[^/]*$`)
 	url = re.ReplaceAllString(url, "$1")
 
-	// download adaptionsets 0 as video vf and adaptionsets 1 as audio af
+	sets := len(period.AdaptationSets)
+	if sets > 2 {
+		sets = 2
+	}
+
 	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		err = DownloadFile(vf.Name(), url+*period.AdaptationSets[0].Representations[0].BaseURL)
-		if err != nil {
-			fmt.Println(err)
-		}
-	}()
-	go func() {
-		defer wg.Done()
-		err = DownloadFile(af.Name(), url+*period.AdaptationSets[1].Representations[0].BaseURL)
-		if err != nil {
-			fmt.Println(err)
-		}
-	}()
+	wg.Add(sets)
+	for set := 0; set < sets; set++ {
+		go func(set int) {
+			defer wg.Done()
+			err = DownloadFile(filenames[set], url+*period.AdaptationSets[set].Representations[0].BaseURL)
+			if err != nil {
+				fmt.Println(err)
+			}
+		}(set)
+	}
 	wg.Wait()
 
-	// combine the two files into one
-	cmd := exec.Command("ffmpeg", "-i", vf.Name(), "-i", af.Name(), "-c", "copy", "-y", cf.Name())
-	err = cmd.Run()
-	if err != nil {
-		fmt.Println(err)
+	if sets == 2 {
+		cmd := exec.Command("ffmpeg", "-i", filenames[0], "-i", filenames[1], "-c", "copy", "-y", filenames[2])
+		err = cmd.Run()
+		if err != nil {
+			fmt.Println(err)
+		}
+	} else {
+		cmd := exec.Command("ffmpeg", "-i", filenames[0], "-c", "copy", "-y", filenames[2])
+		err = cmd.Run()
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 
 	file, err := os.Open(cf.Name())

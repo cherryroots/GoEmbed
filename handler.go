@@ -32,6 +32,10 @@ func handleTwitter(s *discordgo.Session, m *discordgo.MessageCreate, scraper *tw
 
 	videoFiles := getTwitterVideoFiles(tweet)
 
+	if videoFiles == nil {
+		return
+	}
+
 	s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 		Files:      videoFiles,
 		Components: []discordgo.MessageComponent{deleteMessageActionRow},
@@ -140,6 +144,10 @@ func handleInstagram(s *discordgo.Session, m *discordgo.MessageCreate, u *url.UR
 
 	imageFiles, videoFiles := getInstagramFiles(images, videos)
 
+	if imageFiles == nil && videoFiles == nil {
+		return
+	}
+
 	s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 		Files:      append(imageFiles, videoFiles...),
 		Components: []discordgo.MessageComponent{deleteMessageActionRow},
@@ -182,6 +190,11 @@ func handleReddit(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 	}
 	if videoLink.Host == "v.redd.it" {
 		videoFile := getRedditVideoFile(videoLink.String())
+
+		if videoFile == nil {
+			return
+		}
+
 		s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 			Files:      videoFile,
 			Components: []discordgo.MessageComponent{deleteMessageActionRow},
@@ -191,6 +204,11 @@ func handleReddit(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 	if videoLink.Host == "www.twitch.tv" || videoLink.Host == "clips.twitch.tv" {
 		vodid := getTwitchVodId(videoLink)
 		videoFile := getTwitchClipFile(vodid, guild)
+
+		if videoFile == nil {
+			return
+		}
+
 		s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 			Files:      videoFile,
 			Components: []discordgo.MessageComponent{deleteMessageActionRow},
@@ -208,6 +226,10 @@ func handleTwitch(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 	}
 
 	videoFile := getTwitchClipFile(vodid, guild)
+
+	if videoFile == nil {
+		return
+	}
 
 	// send message and handle filesize error
 	s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
@@ -244,6 +266,10 @@ func handleTiktok(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 
 	// get the video file
 	videoFile := getTikTokFile(mediaUrl)
+
+	if videoFile == nil {
+		return
+	}
 
 	// send message and handle filesize error
 	s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
