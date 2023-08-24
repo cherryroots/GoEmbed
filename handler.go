@@ -150,7 +150,7 @@ func handleInstagram(s *discordgo.Session, m *discordgo.MessageCreate, u *url.UR
 
 	s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 		Files:      append(imageFiles, videoFiles...),
-		Components: []discordgo.MessageComponent{deleteMessageActionRow},
+		Components: []discordgo.MessageComponent{instagramActionRow},
 		Reference:  m.Reference(),
 	})
 }

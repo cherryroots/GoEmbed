@@ -6,7 +6,10 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path"
 	"regexp"
+	"strings"
+	"sync"
 	"syscall"
 
 	discordgo "github.com/bwmarrin/discordgo"
@@ -27,9 +30,19 @@ var deleteMessageButton = discordgo.Button{
 	CustomID: "delete_message",
 }
 
+var reduceButton = discordgo.Button{
+	Label:    "Reduce",
+	Style:    discordgo.PrimaryButton,
+	CustomID: "reduce",
+}
+
 // make a discord action row with the delete message button
 var deleteMessageActionRow = discordgo.ActionsRow{
 	Components: []discordgo.MessageComponent{deleteMessageButton},
+}
+
+var instagramActionRow = discordgo.ActionsRow{
+	Components: []discordgo.MessageComponent{reduceButton, deleteMessageButton},
 }
 
 func init() {
@@ -156,6 +169,128 @@ func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 				err = s.ChannelMessageDelete(i.ChannelID, i.Message.ID)
 				if err != nil {
 					fmt.Println(err)
+				}
+			}
+		}
+		if i.MessageComponentData().CustomID == "reduce" {
+			// get the message that was replied to
+			// if the message was sent by the same user that clicked the button, add the attachment select menu
+			// the menu will be a list of all the attachments
+			// the user will be able to select multiple ones
+			msg, err := s.ChannelMessage(i.ChannelID, i.Message.MessageReference.MessageID)
+			if err != nil {
+				// if the message was deleted, do nothing
+				if err.(*discordgo.RESTError).Response.StatusCode == 404 {
+					return
+				}
+			}
+
+			minValues := 1
+
+			attachmentSelectMenu := discordgo.SelectMenu{
+				Placeholder: "Select an attachment",
+				MinValues:   &minValues,
+				MaxValues:   1,
+				CustomID:    "attachment_select_menu",
+				Options:     []discordgo.SelectMenuOption{},
+			}
+
+			for count, attachment := range i.Message.Attachments {
+				attachmentSelectMenu.Options = append(attachmentSelectMenu.Options, discordgo.SelectMenuOption{
+					Label: fmt.Sprint(count + 1),
+					Value: attachment.URL,
+				})
+			}
+
+			// make two rows, one for the attachment select menu and one for the delete message button
+			var reduceActionRow = discordgo.ActionsRow{
+				Components: []discordgo.MessageComponent{attachmentSelectMenu},
+			}
+
+			// if the message was sent by the same user that clicked the button
+			if msg.Author.ID == i.Member.User.ID {
+				// add a new action row with the attachment select menu to the interaction message
+				err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseUpdateMessage,
+					Data: &discordgo.InteractionResponseData{
+						Components: []discordgo.MessageComponent{reduceActionRow, deleteMessageActionRow},
+					},
+				})
+				if err != nil {
+					fmt.Println(err)
+				}
+			}
+		}
+		if i.MessageComponentData().CustomID == "attachment_select_menu" {
+			// get the message that was replied to
+			// if the message was sent by the same user that clicked the button, edit the message with the new attachments only
+			msg, err := s.ChannelMessage(i.ChannelID, i.Message.MessageReference.MessageID)
+			if err != nil {
+				// if the message was deleted, do nothing
+				if err.(*discordgo.RESTError).Response.StatusCode == 404 {
+					return
+				}
+			}
+
+			// download all the attachments
+
+			files := make([]*discordgo.File, 0)
+			emptyAttachment := make([]*discordgo.MessageAttachment, 0)
+
+			var wg sync.WaitGroup
+			wg.Add(len(i.MessageComponentData().Values))
+			for _, url := range i.MessageComponentData().Values {
+				go func(url string) {
+					defer wg.Done()
+					// strip the file extension from the url
+					extension := strings.TrimPrefix(path.Ext(url), url)
+					// Create a temp file starting with twitter and ending with .mp4
+					f, err := os.CreateTemp("", "discordattachment*"+extension)
+					if err != nil {
+						return
+					}
+
+					err = DownloadFile(f.Name(), url)
+					if err != nil {
+						return
+					}
+
+					file, err := os.Open(f.Name())
+					if err != nil {
+						return
+
+					}
+
+					files = append(files, &discordgo.File{
+						Name:   "image" + extension,
+						Reader: file,
+					})
+
+					defer os.Remove(f.Name())
+				}(url)
+			}
+
+			wg.Wait()
+
+			if msg.Author.ID == i.Member.User.ID {
+				// remove the attachments from the message before updating it
+				_, err = s.ChannelMessageEditComplex(&discordgo.MessageEdit{
+					ID:          i.Message.ID,
+					Channel:     i.Message.ChannelID,
+					Attachments: &emptyAttachment,
+					Files:       files,
+				})
+				if err != nil {
+					return
+				}
+				err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseUpdateMessage,
+					Data: &discordgo.InteractionResponseData{
+						Components: []discordgo.MessageComponent{instagramActionRow},
+					},
+				})
+				if err != nil {
+					return
 				}
 			}
 		}
