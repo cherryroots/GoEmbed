@@ -101,7 +101,7 @@ func getTwitterVideoFiles(tweet *twitterscraper.Tweet) []*discordgo.File {
 	return files
 }
 
-func getRedditVideoFile(url string) []*discordgo.File {
+func getRedditVideoFile(url string, guild *discordgo.Guild) []*discordgo.File {
 	// Create a temp file starting with twitter and ending with .mp4
 	mpdf, err := os.CreateTemp("", "reddit*.mpd")
 	if err != nil {
@@ -176,6 +176,13 @@ func getRedditVideoFile(url string) []*discordgo.File {
 	}
 
 	file, err := os.Open(cf.Name())
+	if err != nil {
+		return nil
+	}
+
+	compressVideo(file, guild)
+
+	file, err = os.Open(cf.Name())
 	if err != nil {
 		return nil
 	}

@@ -142,14 +142,15 @@ func GetId(url string) string {
 
 func compressVideo(file *os.File, guild *discordgo.Guild) {
 	var maxSize int
+
 	if guild.PremiumTier == 0 {
-		maxSize = 8 // MB
+		maxSize = 8
 	} else if guild.PremiumTier == 1 {
-		maxSize = 25 // MB
+		maxSize = 25
 	} else if guild.PremiumTier == 2 {
-		maxSize = 50 // MB
+		maxSize = 50
 	} else if guild.PremiumTier == 3 {
-		maxSize = 100 // MB
+		maxSize = 100
 	}
 
 	// check if video is smaller than max size
@@ -159,7 +160,7 @@ func compressVideo(file *os.File, guild *discordgo.Guild) {
 	}
 
 	// make new tmp file
-	f, err := os.CreateTemp("", "twitch*.mp4")
+	f, err := os.CreateTemp("", "compress*.mp4")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -175,12 +176,17 @@ func compressVideo(file *os.File, guild *discordgo.Guild) {
 		fmt.Println(err)
 	}
 	// megabyte per second
-	MBps := (float64(maxSize) / duration) * 0.9
-	// kilobit per second
-	kbps := MBps * 8192
+	kbps := ((float64(maxSize) / duration) * 0.95) * 8000
 
 	// compress video
-	cmd = exec.Command("ffmpeg", "-threads", "10", "-i", file.Name(), "-b:v", fmt.Sprintf("%fk", kbps), "-y", f.Name())
+	cmd = exec.Command("ffmpeg",
+		"-i", file.Name(),
+		"-b:v", fmt.Sprintf("%fk", kbps),
+		"-minrate", fmt.Sprintf("%fk", kbps),
+		"-maxrate", fmt.Sprintf("%fk", kbps),
+		"-bufsize", fmt.Sprintf("%fk", kbps*2),
+		"-preset", "fast",
+		"-y", f.Name())
 	err = cmd.Run()
 	if err != nil {
 		fmt.Println(err)

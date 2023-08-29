@@ -26,6 +26,24 @@ func handleTwitter(s *discordgo.Session, m *discordgo.MessageCreate, scraper *tw
 		return
 	}
 
+	if tweet.IsQuoted {
+		if len(tweet.QuotedStatus.Videos) == 0 && len(tweet.QuotedStatus.GIFs) == 0 {
+			return
+		}
+
+		videoFiles := getTwitterVideoFiles(tweet.QuotedStatus)
+
+		if videoFiles == nil {
+			return
+		}
+
+		s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+			Files:      videoFiles,
+			Components: []discordgo.MessageComponent{deleteMessageActionRow},
+			Reference:  m.Reference(),
+		})
+	}
+
 	if len(tweet.Videos) == 0 && len(tweet.GIFs) == 0 {
 		return
 	}
@@ -189,7 +207,7 @@ func handleReddit(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 		return
 	}
 	if videoLink.Host == "v.redd.it" {
-		videoFile := getRedditVideoFile(videoLink.String())
+		videoFile := getRedditVideoFile(videoLink.String(), guild)
 
 		if videoFile == nil {
 			return

@@ -1,3 +1,4 @@
 .env
 goembed
 __debug*
+tmp
