@@ -176,7 +176,7 @@ func compressVideo(file *os.File, guild *discordgo.Guild) {
 		fmt.Println(err)
 	}
 	// megabyte per second
-	kbps := ((float64(maxSize) / duration) * 0.95) * 8000
+	kbps := ((float64(maxSize) / duration) * 0.90) * 8000
 
 	// compress video
 	cmd = exec.Command("ffmpeg",

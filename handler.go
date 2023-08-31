@@ -37,11 +37,14 @@ func handleTwitter(s *discordgo.Session, m *discordgo.MessageCreate, scraper *tw
 			return
 		}
 
-		s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+		_, err = s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 			Files:      videoFiles,
 			Components: []discordgo.MessageComponent{deleteMessageActionRow},
 			Reference:  m.Reference(),
 		})
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 
 	if len(tweet.Videos) == 0 && len(tweet.GIFs) == 0 {
@@ -54,11 +57,14 @@ func handleTwitter(s *discordgo.Session, m *discordgo.MessageCreate, scraper *tw
 		return
 	}
 
-	s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+	_, err = s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 		Files:      videoFiles,
 		Components: []discordgo.MessageComponent{deleteMessageActionRow},
 		Reference:  m.Reference(),
 	})
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 func handleInstagram(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) {
@@ -166,11 +172,14 @@ func handleInstagram(s *discordgo.Session, m *discordgo.MessageCreate, u *url.UR
 		return
 	}
 
-	s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+	_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 		Files:      append(imageFiles, videoFiles...),
 		Components: []discordgo.MessageComponent{instagramActionRow},
 		Reference:  m.Reference(),
 	})
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 func handleReddit(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) {
@@ -213,11 +222,14 @@ func handleReddit(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 			return
 		}
 
-		s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+		_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 			Files:      videoFile,
 			Components: []discordgo.MessageComponent{deleteMessageActionRow},
 			Reference:  m.Reference(),
 		})
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 	if videoLink.Host == "www.twitch.tv" || videoLink.Host == "clips.twitch.tv" {
 		vodid := getTwitchVodId(videoLink)
@@ -227,11 +239,14 @@ func handleReddit(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 			return
 		}
 
-		s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+		_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 			Files:      videoFile,
 			Components: []discordgo.MessageComponent{deleteMessageActionRow},
 			Reference:  m.Reference(),
 		})
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 }
 
@@ -250,11 +265,14 @@ func handleTwitch(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 	}
 
 	// send message and handle filesize error
-	s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+	_, err = s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 		Files:      videoFile,
 		Components: []discordgo.MessageComponent{deleteMessageActionRow},
 		Reference:  m.Reference(),
 	})
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 func handleTiktok(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) {
@@ -290,9 +308,12 @@ func handleTiktok(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 	}
 
 	// send message and handle filesize error
-	s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+	_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 		Files:      videoFile,
 		Components: []discordgo.MessageComponent{deleteMessageActionRow},
 		Reference:  m.Reference(),
 	})
+	if err != nil {
+		fmt.Println(err)
+	}
 }
