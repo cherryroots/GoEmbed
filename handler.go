@@ -3,13 +3,14 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
-	discordgo "github.com/bwmarrin/discordgo"
+	"github.com/bwmarrin/discordgo"
 	twitterscraper "github.com/n0madic/twitter-scraper"
 	"github.com/tidwall/gjson"
 )
@@ -17,6 +18,11 @@ import (
 func handleTwitter(s *discordgo.Session, m *discordgo.MessageCreate, scraper *twitterscraper.Scraper, u *url.URL) {
 	if !strings.Contains(u.Path, "/status/") {
 		return
+	}
+
+	guild, err := s.Guild(m.GuildID)
+	if err != nil {
+		log.Println(err)
 	}
 
 	id := strings.Split(u.Path, "/")[3]
@@ -31,7 +37,7 @@ func handleTwitter(s *discordgo.Session, m *discordgo.MessageCreate, scraper *tw
 			return
 		}
 
-		videoFiles := getTwitterVideoFiles(tweet.QuotedStatus)
+		videoFiles := getTwitterVideoFiles(tweet.QuotedStatus, guild)
 
 		if videoFiles == nil {
 			return
@@ -43,7 +49,7 @@ func handleTwitter(s *discordgo.Session, m *discordgo.MessageCreate, scraper *tw
 			Reference:  m.Reference(),
 		})
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 	}
 
@@ -51,7 +57,7 @@ func handleTwitter(s *discordgo.Session, m *discordgo.MessageCreate, scraper *tw
 		return
 	}
 
-	videoFiles := getTwitterVideoFiles(tweet)
+	videoFiles := getTwitterVideoFiles(tweet, guild)
 
 	if videoFiles == nil {
 		return
@@ -63,7 +69,7 @@ func handleTwitter(s *discordgo.Session, m *discordgo.MessageCreate, scraper *tw
 		Reference:  m.Reference(),
 	})
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 }
 
@@ -83,7 +89,7 @@ func handleInstagram(s *discordgo.Session, m *discordgo.MessageCreate, u *url.UR
 		req.Header.Add("X-RapidAPI-Host", "instagram-scraper-2022.p.rapidapi.com")
 		res1, err := http.DefaultClient.Do(req)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 		defer res1.Body.Close()
 		body, _ := io.ReadAll(res1.Body)
@@ -102,7 +108,7 @@ func handleInstagram(s *discordgo.Session, m *discordgo.MessageCreate, u *url.UR
 
 			res, err := http.DefaultClient.Do(req)
 			if err != nil {
-				fmt.Println(err)
+				log.Println(err)
 			}
 			defer res.Body.Close()
 			body, _ = io.ReadAll(res.Body)
@@ -153,7 +159,7 @@ func handleInstagram(s *discordgo.Session, m *discordgo.MessageCreate, u *url.UR
 
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 
 		defer res.Body.Close()
@@ -178,7 +184,7 @@ func handleInstagram(s *discordgo.Session, m *discordgo.MessageCreate, u *url.UR
 		Reference:  m.Reference(),
 	})
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 }
 
@@ -196,19 +202,19 @@ func handleReddit(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 
 		resp, err := client.Do(req)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 		defer resp.Body.Close()
 
 		u, err = url.Parse(resp.Request.URL.String())
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 	}
 
 	guild, err := s.Guild(m.GuildID)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 
 	videoLink := getRedditVideoLink(u)
@@ -228,7 +234,7 @@ func handleReddit(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 			Reference:  m.Reference(),
 		})
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 	}
 	if videoLink.Host == "www.twitch.tv" || videoLink.Host == "clips.twitch.tv" {
@@ -245,7 +251,7 @@ func handleReddit(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 			Reference:  m.Reference(),
 		})
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 	}
 }
@@ -255,7 +261,7 @@ func handleTwitch(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 
 	guild, err := s.Guild(m.GuildID)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 
 	videoFile := getTwitchClipFile(vodid, guild)
@@ -271,7 +277,7 @@ func handleTwitch(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 		Reference:  m.Reference(),
 	})
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 }
 
@@ -285,13 +291,13 @@ func handleTiktok(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 
 		resp, err := client.Do(req)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 		defer resp.Body.Close()
 
 		u, err = url.Parse(resp.Request.URL.String())
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 	}
 
@@ -314,6 +320,6 @@ func handleTiktok(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 		Reference:  m.Reference(),
 	})
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 }

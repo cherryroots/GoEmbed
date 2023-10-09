@@ -12,15 +12,9 @@ import (
 	"sync"
 	"syscall"
 
-	discordgo "github.com/bwmarrin/discordgo"
+	"github.com/bwmarrin/discordgo"
 	"github.com/joho/godotenv"
 	twitterscraper "github.com/n0madic/twitter-scraper"
-)
-
-var (
-	Token      string
-	TwUsername string
-	TwPassword string
 )
 
 var deleteMessageButton = discordgo.Button{
@@ -58,7 +52,7 @@ func main() {
 
 	dg, err := discordgo.New("Bot " + Token)
 	if err != nil {
-		fmt.Println("error creating Discord session,", err)
+		log.Println("error creating Discord session,", err)
 		return
 	}
 
@@ -81,11 +75,11 @@ func main() {
 
 	err = dg.Open()
 	if err != nil {
-		fmt.Println("error opening connection,", err)
+		log.Println("error opening connection,", err)
 		return
 	}
 
-	fmt.Println("Bot is now running.  Press CTRL-C to exit.")
+	log.Println("Bot is now running.  Press CTRL-C to exit.")
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	<-sc
@@ -93,7 +87,7 @@ func main() {
 	dg.Close()
 	twScraper.Logout()
 
-	defer fmt.Print("Bot is now offline.")
+	defer log.Println("Bot is now offline.")
 
 }
 
@@ -153,7 +147,7 @@ func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 				if err.(*discordgo.RESTError).Response.StatusCode == 404 {
 					err = s.ChannelMessageDelete(i.ChannelID, i.Message.ID)
 					if err != nil {
-						fmt.Println(err)
+						log.Println(err)
 					}
 				}
 				return
@@ -161,7 +155,7 @@ func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			if msg.Author.ID == i.Member.User.ID {
 				err = s.ChannelMessageDelete(i.ChannelID, i.Message.ID)
 				if err != nil {
-					fmt.Println(err)
+					log.Println(err)
 				}
 			}
 		}
@@ -184,9 +178,12 @@ func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			}
 
 			for count, attachment := range i.Message.Attachments {
+				mediaUrl, _ := url.Parse(attachment.URL)
+				// remove query params
+				mediaUrl.RawQuery = ""
 				attachmentSelectMenu.Options = append(attachmentSelectMenu.Options, discordgo.SelectMenuOption{
 					Label: fmt.Sprint(count + 1),
-					Value: attachment.URL,
+					Value: mediaUrl.String(),
 				})
 			}
 
@@ -202,7 +199,7 @@ func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 					},
 				})
 				if err != nil {
-					fmt.Println(err)
+					log.Println(err)
 				}
 			}
 		}

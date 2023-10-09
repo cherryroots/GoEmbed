@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -12,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	discordgo "github.com/bwmarrin/discordgo"
+	"github.com/bwmarrin/discordgo"
 	"github.com/tidwall/gjson"
 )
 
@@ -49,7 +50,7 @@ func getRedditVideoLink(u *url.URL) *url.URL {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 	defer resp.Body.Close()
 
@@ -111,18 +112,18 @@ func getTikTokVideoLink(id string) string {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 
 	// parse the response json
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 	var jsonData map[string]interface{}
 	err = json.Unmarshal(body, &jsonData)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 
 	mediaUrl := jsonData["aweme_list"].([]interface{})[0].(map[string]interface{})["video"].(map[string]interface{})["play_addr"].(map[string]interface{})["url_list"].([]interface{})[0].(string)
@@ -162,18 +163,18 @@ func compressVideo(file *os.File, guild *discordgo.Guild) {
 	// make new tmp file
 	f, err := os.CreateTemp("", "compress*.mp4")
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 
 	// get video length in seconds and calculate a bitrate to compress to
 	cmd := exec.Command("ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", file.Name())
 	out, err := cmd.Output()
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 	duration, err := strconv.ParseFloat(strings.TrimSpace(string(out)), 64)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 	// megabyte per second
 	kbps := ((float64(maxSize) / duration) * 0.90) * 8000
@@ -189,17 +190,17 @@ func compressVideo(file *os.File, guild *discordgo.Guild) {
 		"-y", f.Name())
 	err = cmd.Run()
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 
 	// replace old file with new file
 	err = os.Remove(file.Name())
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 	err = os.Rename(f.Name(), file.Name())
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 
 }

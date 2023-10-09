@@ -1,16 +1,16 @@
 package main
 
 import (
-	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"regexp"
 	"sync"
 
-	discordgo "github.com/bwmarrin/discordgo"
-	mpd "github.com/mc2soft/mpd"
+	"github.com/bwmarrin/discordgo"
+	"github.com/mc2soft/mpd"
 	twitterscraper "github.com/n0madic/twitter-scraper"
 )
 
@@ -35,7 +35,7 @@ func DownloadFile(filepath string, url string) error {
 	return err
 }
 
-func getTwitterVideoFiles(tweet *twitterscraper.Tweet) []*discordgo.File {
+func getTwitterVideoFiles(tweet *twitterscraper.Tweet, guild *discordgo.Guild) []*discordgo.File {
 	files := make([]*discordgo.File, 0)
 
 	for _, video := range tweet.Videos {
@@ -53,6 +53,14 @@ func getTwitterVideoFiles(tweet *twitterscraper.Tweet) []*discordgo.File {
 		file, err := os.Open(f.Name())
 		if err != nil {
 			continue
+		}
+
+		// compress video if it is too big
+		compressVideo(file, guild)
+
+		file, err = os.Open(f.Name())
+		if err != nil {
+			return nil
 		}
 
 		files = append(files, &discordgo.File{
@@ -82,7 +90,7 @@ func getTwitterVideoFiles(tweet *twitterscraper.Tweet) []*discordgo.File {
 			f.Name()+".gif")
 		err = cmd.Run()
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 
 		file, err := os.Open(f.Name() + ".gif")
@@ -155,7 +163,7 @@ func getRedditVideoFile(url string, guild *discordgo.Guild) []*discordgo.File {
 			defer wg.Done()
 			err = DownloadFile(filenames[set], url+*period.AdaptationSets[set].Representations[0].BaseURL)
 			if err != nil {
-				fmt.Println(err)
+				log.Println(err)
 			}
 		}(set)
 	}
@@ -165,13 +173,13 @@ func getRedditVideoFile(url string, guild *discordgo.Guild) []*discordgo.File {
 		cmd := exec.Command("ffmpeg", "-i", filenames[0], "-i", filenames[1], "-c", "copy", "-y", filenames[2])
 		err = cmd.Run()
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 	} else {
 		cmd := exec.Command("ffmpeg", "-i", filenames[0], "-c", "copy", "-y", filenames[2])
 		err = cmd.Run()
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 	}
 
