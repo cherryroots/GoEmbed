@@ -346,3 +346,41 @@ func getTikTokFile(url string) []*discordgo.File {
 
 	return videoFile
 }
+
+func getVimeoFile(u string, guild *discordgo.Guild) []*discordgo.File {
+	// Create a temp file starting with twitter and ending with .mp4
+	f, err := os.CreateTemp("", "vimeo*.mp4")
+	if err != nil {
+		return nil
+	}
+
+	out, err := exec.Command("./yt-dlp", "-o", f.Name(), "--force-overwrites", u).CombinedOutput()
+	if err != nil {
+		log.Println(string(out))
+		return nil
+	}
+
+	file, err := os.Open(f.Name())
+	if err != nil {
+		return nil
+	}
+
+	// compress video if it is too big
+	compressVideo(file, guild)
+
+	file, err = os.Open(f.Name())
+	if err != nil {
+		return nil
+	}
+
+	videoFile := []*discordgo.File{
+		{
+			Name:   "video.mp4",
+			Reader: file,
+		},
+	}
+
+	defer os.Remove(f.Name())
+
+	return videoFile
+}

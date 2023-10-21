@@ -29,12 +29,18 @@ var reduceButton = discordgo.Button{
 	CustomID: "reduce",
 }
 
+var retryButton = discordgo.Button{
+	Label:    "Retry",
+	Style:    discordgo.PrimaryButton,
+	CustomID: "retry",
+}
+
 var deleteMessageActionRow = discordgo.ActionsRow{
-	Components: []discordgo.MessageComponent{deleteMessageButton},
+	Components: []discordgo.MessageComponent{retryButton, deleteMessageButton},
 }
 
 var instagramActionRow = discordgo.ActionsRow{
-	Components: []discordgo.MessageComponent{reduceButton, deleteMessageButton},
+	Components: []discordgo.MessageComponent{reduceButton, retryButton, deleteMessageButton},
 }
 
 func init() {
@@ -67,7 +73,7 @@ func main() {
 	})
 
 	dg.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		interactionCreate(s, i)
+		interactionCreate(s, i, twScraper)
 	})
 
 	dg.Identify.Intents = discordgo.IntentsGuildMessages
@@ -91,7 +97,7 @@ func main() {
 
 }
 
-func handleUrl(s *discordgo.Session, m *discordgo.MessageCreate, scraper *twitterscraper.Scraper, link string) {
+func handleUrl(s *discordgo.Session, m *discordgo.Message, scraper *twitterscraper.Scraper, link string) {
 	u, err := url.Parse(link)
 	if err != nil {
 		return
@@ -120,6 +126,10 @@ func handleUrl(s *discordgo.Session, m *discordgo.MessageCreate, scraper *twitte
 	if u.Host == "www.tiktok.com" || u.Host == "tiktok.com" || u.Host == "vm.tiktok.com" {
 		handleTiktok(s, m, u)
 	}
+
+	if u.Host == "www.vimeo.com" || u.Host == "vimeo.com" {
+		handleVimeo(s, m, u)
+	}
 }
 
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate, scraper *twitterscraper.Scraper) {
@@ -132,14 +142,16 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate, scraper *tw
 		return
 	}
 
+	mm := m.Message
+
 	regex := regexp.MustCompile(`(?m)[<]?(https?:\/\/[^\s<>]+)[>]?\b`)
 	result := regex.FindAllStringSubmatch(m.Content, -1)
 	for _, element := range result {
-		go handleUrl(s, m, scraper, element[1])
+		go handleUrl(s, mm, scraper, element[1])
 	}
 }
 
-func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate, scraper *twitterscraper.Scraper) {
 	if i.Type == discordgo.InteractionMessageComponent {
 		if i.MessageComponentData().CustomID == "delete_message" {
 			msg, err := s.ChannelMessage(i.ChannelID, i.Message.MessageReference.MessageID)
@@ -157,6 +169,21 @@ func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 				if err != nil {
 					log.Println(err)
 				}
+			}
+		}
+		if i.MessageComponentData().CustomID == "retry" {
+			msg, err := s.ChannelMessage(i.ChannelID, i.Message.MessageReference.MessageID)
+			if err != nil {
+				if err.(*discordgo.RESTError).Response.StatusCode == 404 {
+					return
+				}
+			}
+			// get links from message
+			regex := regexp.MustCompile(`(?m)[<]?(https?:\/\/[^\s<>]+)[>]?\b`)
+			result := regex.FindAllStringSubmatch(msg.Content, -1)
+			for _, element := range result {
+				s.ChannelMessageDelete(i.ChannelID, i.Message.ID)
+				go handleUrl(s, msg, scraper, element[1])
 			}
 		}
 		if i.MessageComponentData().CustomID == "reduce" {

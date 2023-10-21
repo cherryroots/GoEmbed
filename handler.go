@@ -15,7 +15,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func handleTwitter(s *discordgo.Session, m *discordgo.MessageCreate, scraper *twitterscraper.Scraper, u *url.URL) {
+func handleTwitter(s *discordgo.Session, m *discordgo.Message, scraper *twitterscraper.Scraper, u *url.URL) {
 	if !strings.Contains(u.Path, "/status/") {
 		return
 	}
@@ -73,7 +73,7 @@ func handleTwitter(s *discordgo.Session, m *discordgo.MessageCreate, scraper *tw
 	}
 }
 
-func handleInstagram(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) {
+func handleInstagram(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 	var images []string
 	var videos []string
 	if strings.Contains(u.Path, "/stories/") {
@@ -188,7 +188,7 @@ func handleInstagram(s *discordgo.Session, m *discordgo.MessageCreate, u *url.UR
 	}
 }
 
-func handleReddit(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) {
+func handleReddit(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 
 	// remove query params
 	u.RawQuery = ""
@@ -256,7 +256,7 @@ func handleReddit(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 	}
 }
 
-func handleTwitch(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) {
+func handleTwitch(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 	vodid := getTwitchVodId(u)
 
 	guild, err := s.Guild(m.GuildID)
@@ -281,7 +281,7 @@ func handleTwitch(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 	}
 }
 
-func handleTiktok(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) {
+func handleTiktok(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 	// follow url and get the redirect url
 	if u.Host == "vm.tiktok.com" {
 		client := &http.Client{}
@@ -315,6 +315,30 @@ func handleTiktok(s *discordgo.Session, m *discordgo.MessageCreate, u *url.URL) 
 
 	// send message and handle filesize error
 	_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+		Files:      videoFile,
+		Components: []discordgo.MessageComponent{deleteMessageActionRow},
+		Reference:  m.Reference(),
+	})
+	if err != nil {
+		log.Println(err)
+	}
+}
+
+func handleVimeo(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
+	guild, err := s.Guild(m.GuildID)
+	if err != nil {
+		log.Println(err)
+	}
+
+	// get the video file
+	videoFile := getVimeoFile(u.String(), guild)
+
+	if videoFile == nil {
+		return
+	}
+
+	// send message and handle filesize error
+	_, err = s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 		Files:      videoFile,
 		Components: []discordgo.MessageComponent{deleteMessageActionRow},
 		Reference:  m.Reference(),
