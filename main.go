@@ -164,11 +164,12 @@ func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate, scr
 				}
 				return
 			}
-			if msg.Author.ID == i.Member.User.ID {
-				err = s.ChannelMessageDelete(i.ChannelID, i.Message.ID)
-				if err != nil {
-					log.Println(err)
-				}
+			if msg.Author.ID != i.Member.User.ID {
+				return
+			}
+			err = s.ChannelMessageDelete(i.ChannelID, i.Message.ID)
+			if err != nil {
+				log.Println(err)
 			}
 		}
 		if i.MessageComponentData().CustomID == "retry" {
@@ -179,6 +180,9 @@ func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate, scr
 				}
 			}
 			// get links from message
+			if msg.Author.ID != i.Member.User.ID {
+				return
+			}
 			regex := regexp.MustCompile(`(?m)[<]?(https?:\/\/[^\s<>]+)[>]?\b`)
 			result := regex.FindAllStringSubmatch(msg.Content, -1)
 			for _, element := range result {
