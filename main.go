@@ -199,11 +199,12 @@ func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate, scr
 			}
 
 			minValues := 1
+			attachmentLen := len(i.Message.Attachments)
 
 			attachmentSelectMenu := discordgo.SelectMenu{
 				Placeholder: "Select an attachment",
 				MinValues:   &minValues,
-				MaxValues:   1,
+				MaxValues:   attachmentLen,
 				CustomID:    "attachment_select_menu",
 				Options:     []discordgo.SelectMenuOption{},
 			}

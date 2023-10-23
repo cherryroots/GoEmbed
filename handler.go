@@ -39,7 +39,15 @@ func handleTwitter(s *discordgo.Session, m *discordgo.Message, scraper *twitters
 
 		videoFiles := getTwitterVideoFiles(tweet.QuotedStatus, guild)
 
-		if videoFiles == nil {
+		if len(videoFiles) == 0 {
+			_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+				Content:    "Could not fetch post. Please retry",
+				Components: []discordgo.MessageComponent{deleteMessageActionRow},
+				Reference:  m.Reference(),
+			})
+			if err != nil {
+				log.Println(err)
+			}
 			return
 		}
 
@@ -59,7 +67,15 @@ func handleTwitter(s *discordgo.Session, m *discordgo.Message, scraper *twitters
 
 	videoFiles := getTwitterVideoFiles(tweet, guild)
 
-	if videoFiles == nil {
+	if len(videoFiles) == 0 {
+		_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+			Content:    "Could not fetch post. Please retry",
+			Components: []discordgo.MessageComponent{deleteMessageActionRow},
+			Reference:  m.Reference(),
+		})
+		if err != nil {
+			log.Println(err)
+		}
 		return
 	}
 
@@ -174,7 +190,15 @@ func handleInstagram(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 
 	imageFiles, videoFiles := getInstagramFiles(images, videos)
 
-	if imageFiles == nil && videoFiles == nil {
+	if len(imageFiles) == 0 && len(videoFiles) == 0 {
+		_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+			Content:    "Could not fetch post. Please retry",
+			Components: []discordgo.MessageComponent{instagramActionRow},
+			Reference:  m.Reference(),
+		})
+		if err != nil {
+			log.Println(err)
+		}
 		return
 	}
 
@@ -224,7 +248,15 @@ func handleReddit(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 	if videoLink.Host == "v.redd.it" {
 		videoFile := getRedditVideoFile(videoLink.String(), guild)
 
-		if videoFile == nil {
+		if len(videoFile) == 0 {
+			_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+				Content:    "Could not fetch post. Please retry",
+				Components: []discordgo.MessageComponent{deleteMessageActionRow},
+				Reference:  m.Reference(),
+			})
+			if err != nil {
+				log.Println(err)
+			}
 			return
 		}
 
@@ -241,7 +273,15 @@ func handleReddit(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 		vodid := getTwitchVodId(videoLink)
 		videoFile := getTwitchClipFile(vodid, guild)
 
-		if videoFile == nil {
+		if len(videoFile) == 0 {
+			_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+				Content:    "Could not fetch post. Please retry",
+				Components: []discordgo.MessageComponent{deleteMessageActionRow},
+				Reference:  m.Reference(),
+			})
+			if err != nil {
+				log.Println(err)
+			}
 			return
 		}
 
@@ -266,7 +306,15 @@ func handleTwitch(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 
 	videoFile := getTwitchClipFile(vodid, guild)
 
-	if videoFile == nil {
+	if len(videoFile) == 0 {
+		_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+			Content:    "Could not fetch post. Please retry",
+			Components: []discordgo.MessageComponent{deleteMessageActionRow},
+			Reference:  m.Reference(),
+		})
+		if err != nil {
+			log.Println(err)
+		}
 		return
 	}
 
@@ -301,15 +349,21 @@ func handleTiktok(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 		}
 	}
 
-	videoId := getTikTokID(u.String())
-
 	// get the video linl
-	mediaUrl := getTikTokVideoLink(videoId)
+	mediaUrl := getTikTokVideoLink(getTikTokID(u.String()))
 
 	// get the video file
 	videoFile := getTikTokFile(mediaUrl)
 
-	if videoFile == nil {
+	if len(videoFile) == 0 {
+		_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+			Content:    "Could not fetch post. Please retry",
+			Components: []discordgo.MessageComponent{deleteMessageActionRow},
+			Reference:  m.Reference(),
+		})
+		if err != nil {
+			log.Println(err)
+		}
 		return
 	}
 
@@ -333,7 +387,15 @@ func handleVimeo(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 	// get the video file
 	videoFile := getVimeoFile(u.String(), guild)
 
-	if videoFile == nil {
+	if len(videoFile) == 0 {
+		_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+			Content:    "Could not fetch post. Please retry",
+			Components: []discordgo.MessageComponent{deleteMessageActionRow},
+			Reference:  m.Reference(),
+		})
+		if err != nil {
+			log.Println(err)
+		}
 		return
 	}
 
