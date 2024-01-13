@@ -21,18 +21,21 @@ var deleteMessageButton = discordgo.Button{
 	Label:    "Delete Message",
 	Style:    discordgo.DangerButton,
 	CustomID: "delete_message",
+	Emoji:    discordgo.ComponentEmoji{Name: "❌"},
 }
 
 var reduceButton = discordgo.Button{
 	Label:    "Reduce",
 	Style:    discordgo.PrimaryButton,
 	CustomID: "reduce",
+	Emoji:    discordgo.ComponentEmoji{Name: "🔻"},
 }
 
 var retryButton = discordgo.Button{
 	Label:    "Retry",
 	Style:    discordgo.PrimaryButton,
 	CustomID: "retry",
+	Emoji:    discordgo.ComponentEmoji{Name: "🔁"},
 }
 
 var deleteMessageActionRow = discordgo.ActionsRow{
@@ -216,6 +219,7 @@ func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate, scr
 				attachmentSelectMenu.Options = append(attachmentSelectMenu.Options, discordgo.SelectMenuOption{
 					Label: fmt.Sprint(count + 1),
 					Value: mediaUrl.String(),
+					Emoji: discordgo.ComponentEmoji{Name: "⭐"},
 				})
 			}
 
@@ -257,7 +261,7 @@ func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate, scr
 						return
 					}
 
-					err = DownloadFile(f.Name(), url)
+					err = downloadFile(f.Name(), url)
 					if err != nil {
 						return
 					}

@@ -14,7 +14,7 @@ import (
 	twitterscraper "github.com/n0madic/twitter-scraper"
 )
 
-func DownloadFile(filepath string, url string) error {
+func downloadFile(filepath string, url string) error {
 
 	// Get the data
 	resp, err := http.Get(url)
@@ -45,7 +45,7 @@ func getTwitterVideoFiles(tweet *twitterscraper.Tweet, guild *discordgo.Guild) [
 			continue
 		}
 
-		err = DownloadFile(f.Name(), video.URL)
+		err = downloadFile(f.Name(), video.URL)
 		if err != nil {
 			continue
 		}
@@ -78,7 +78,7 @@ func getTwitterVideoFiles(tweet *twitterscraper.Tweet, guild *discordgo.Guild) [
 			continue
 		}
 
-		err = DownloadFile(f.Name(), gif.URL)
+		err = downloadFile(f.Name(), gif.URL)
 		if err != nil {
 			continue
 		}
@@ -109,28 +109,32 @@ func getTwitterVideoFiles(tweet *twitterscraper.Tweet, guild *discordgo.Guild) [
 	return files
 }
 
-func getRedditVideoFile(url string, guild *discordgo.Guild) []*discordgo.File {
+func getRedditVideoFile(url string, guild *discordgo.Guild, auth redditAuth) []*discordgo.File {
 	// Create a temp file starting with twitter and ending with .mp4
 	mpdf, err := os.CreateTemp("", "reddit*.mpd")
 	if err != nil {
 		return nil
 	}
+	defer os.Remove(mpdf.Name())
 	vf, err := os.CreateTemp("", "reddit*.mp4")
 	if err != nil {
 		return nil
 	}
+	defer os.Remove(vf.Name())
 	af, err := os.CreateTemp("", "reddit*.mp4")
 	if err != nil {
 		return nil
 	}
+	defer os.Remove(af.Name())
 	cf, err := os.CreateTemp("", "reddit*.mp4")
 	if err != nil {
 		return nil
 	}
+	defer os.Remove(cf.Name())
 
 	filenames := []string{vf.Name(), af.Name(), cf.Name()}
 
-	err = DownloadFile(mpdf.Name(), url)
+	err = downloadFile(mpdf.Name(), url)
 	if err != nil {
 		return nil
 	}
@@ -161,7 +165,7 @@ func getRedditVideoFile(url string, guild *discordgo.Guild) []*discordgo.File {
 	for set := 0; set < sets; set++ {
 		go func(set int) {
 			defer wg.Done()
-			err = DownloadFile(filenames[set], url+*period.AdaptationSets[set].Representations[0].BaseURL)
+			err = downloadFile(filenames[set], url+*period.AdaptationSets[set].Representations[0].BaseURL)
 			if err != nil {
 				log.Println(err)
 			}
@@ -201,11 +205,6 @@ func getRedditVideoFile(url string, guild *discordgo.Guild) []*discordgo.File {
 			Reader: file,
 		},
 	}
-
-	defer os.Remove(mpdf.Name())
-	defer os.Remove(vf.Name())
-	defer os.Remove(af.Name())
-	defer os.Remove(cf.Name())
 
 	return videoFile
 
@@ -265,7 +264,7 @@ func getInstagramFiles(images []string, videos []string) ([]*discordgo.File, []*
 				return
 			}
 
-			err = DownloadFile(f.Name(), image)
+			err = downloadFile(f.Name(), image)
 			if err != nil {
 				return
 			}
@@ -294,7 +293,7 @@ func getInstagramFiles(images []string, videos []string) ([]*discordgo.File, []*
 				return
 			}
 
-			err = DownloadFile(f.Name(), video)
+			err = downloadFile(f.Name(), video)
 			if err != nil {
 				return
 			}
@@ -325,7 +324,7 @@ func getTikTokFile(url string) []*discordgo.File {
 		return nil
 	}
 
-	err = DownloadFile(f.Name(), url)
+	err = downloadFile(f.Name(), url)
 	if err != nil {
 		return nil
 	}

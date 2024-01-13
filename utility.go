@@ -17,6 +17,42 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+type redditAuth struct {
+	AccessToken string `json:"access_token"`
+	ExpiresIn   int    `json:"expires_in"`
+	TokenType   string `json:"token_type"`
+	Scope       string `json:"scope"`
+}
+
+func requestRedditToken() (redditAuth, error) {
+	client := &http.Client{}
+	data := strings.NewReader("grant_type=password&username=" + os.Getenv("REDDIT_USER") + "&password=" + os.Getenv("REDDIT_PASS"))
+	req, _ := http.NewRequest("POST", "https://www.reddit.com/api/v1/access_token", data)
+	req.Header.Add("user-agent", "Discord Bot by Garnet_D")
+	req.SetBasicAuth(os.Getenv("REDDIT_CLIENT"), os.Getenv("REDDIT_SECRET"))
+	resp, err := client.Do(req)
+	if err != nil {
+		return redditAuth{}, err
+	}
+	defer resp.Body.Close()
+	var auth redditAuth
+	if err := json.NewDecoder(resp.Body).Decode(&auth); err != nil {
+		return redditAuth{}, err
+	}
+	return auth, nil
+}
+
+func redditFullname(url string) string {
+	// extract https://www.reddit.com/r/birdstakingthetrain/comments/195emed/okay_everybody_out/
+	// to get the fullname : 195emed with regex
+	regex := regexp.MustCompile(`(?m)\/r\/[a-zA-Z0-9_]+\/comments\/([a-zA-Z0-9_]+)`)
+	result := regex.FindStringSubmatch(url)
+	if len(result) > 1 {
+		return result[1]
+	}
+	return ""
+}
+
 func getTikTokID(url string) string {
 	// parse an url like : https://www.tiktok.com/@therock/video/6817233442149108486?lang=en
 	// to get the video id : 6817233442149108486
@@ -41,11 +77,14 @@ func getTwitchVodId(url *url.URL) string {
 	return vodid
 }
 
-func getRedditVideoLink(u *url.URL) *url.URL {
+func getRedditVideoLink(u *url.URL, auth redditAuth) *url.URL {
 	// Fetch data from Reddit post
 	client := &http.Client{}
-	req, _ := http.NewRequest("GET", u.String()+".json", nil)
-	req.Header.Add("user-agent", os.Getenv("USERAGENT"))
+	u.Host = "oauth.reddit.com"
+	// get reddit post data from the api using the full url
+	req, _ := http.NewRequest("GET", "https://oauth.reddit.com/api/info?id=t3_"+redditFullname(u.String()), nil)
+	req.Header.Add("Authorization", fmt.Sprintf("bearer %s", auth.AccessToken))
+	req.Header.Add("user-agent", "Discord Bot by Garnet_D")
 	req.Header.Add("sec-fetch-site", "same-origin")
 
 	resp, err := client.Do(req)
@@ -62,32 +101,52 @@ func getRedditVideoLink(u *url.URL) *url.URL {
 	result := regex.FindStringSubmatch(string(body))
 	if len(result) > 1 {
 		fullUrl := "https://" + result[0]
-		url, _ := url.Parse(fullUrl)
-		return url
+		u, _ := url.Parse(fullUrl)
+		return u
 	}
 
 	regex = regexp.MustCompile(`(?m)dash_url\": \"(.*?)\"`)
 	result = regex.FindStringSubmatch(string(body))
 	if len(result) > 1 {
-		url, _ := url.Parse(result[1])
-		return url
+		u, _ := url.Parse(result[1])
+		return u
 	}
 	return nil
 }
 
+func followRedirect(u *url.URL, auth redditAuth) (*url.URL, error) {
+	client := &http.Client{}
+	req, _ := http.NewRequest("HEAD", u.String(), nil)
+	req.Header.Set("Authorization", "bearer "+auth.AccessToken)
+	resp, err := client.Do(req)
+	if err != nil {
+		return u, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		u, err = url.Parse(resp.Header.Get("Location"))
+		if err != nil {
+			return u, err
+		}
+	} else {
+		u = resp.Request.URL
+	}
+	return u, nil
+}
+
 func getInstagramPostLinks(body string) (images []string, videos []string) {
-	mediatype := gjson.Get(body, "__typename").String()
+	mediaType := gjson.Get(body, "__typename").String()
 	imageLinks := []string{}
 	videoLinks := []string{}
-	if mediatype == "GraphVideo" {
+	if mediaType == "GraphVideo" {
 		link := gjson.Get(body, "video_url").String()
 		videoLinks = append(videoLinks, link)
 	}
-	if mediatype == "GraphImage" {
+	if mediaType == "GraphImage" {
 		link := gjson.Get(body, "display_url").String()
 		imageLinks = append(imageLinks, link)
 	}
-	if mediatype == "GraphSidecar" {
+	if mediaType == "GraphSidecar" {
 		sidecarLinks := gjson.Get(body, "edge_sidecar_to_children.edges").Array()
 		for _, link := range sidecarLinks {
 			if link.Get("node.__typename").String() == "GraphVideo" {
@@ -177,7 +236,7 @@ func compressVideo(file *os.File, guild *discordgo.Guild) {
 		log.Println(err)
 	}
 	// megabyte per second
-	kbps := ((float64(maxSize) / duration) * 0.90) * 8000
+	kbps := ((float64(maxSize) / duration) * 0.85) * 8000
 
 	// compress video
 	cmd = exec.Command("ffmpeg",

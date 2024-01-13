@@ -217,22 +217,29 @@ func handleReddit(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 	// remove query params
 	u.RawQuery = ""
 
+	auth, err := requestRedditToken()
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
 	// if url is v.redd.it then get the redirect url
 	if u.Host == "v.redd.it" {
-		client := &http.Client{}
-		req, _ := http.NewRequest("GET", u.String(), nil)
-		req.Header.Add("user-agent", os.Getenv("USERAGENT"))
-		req.Header.Add("sec-fetch-site", "same-origin")
-
-		resp, err := client.Do(req)
+		// get /video url
+		u, err = followRedirect(u, auth)
 		if err != nil {
-			log.Println(err)
+			return
 		}
-		defer resp.Body.Close()
-
-		u, err = url.Parse(resp.Request.URL.String())
+		// get full url
+		u, err = followRedirect(u, auth)
 		if err != nil {
-			log.Println(err)
+			return
+		}
+	} else if u.Host == "www.reddit.com" && strings.Contains(u.Path, "/s/") {
+		// get full url
+		u, err = followRedirect(u, auth)
+		if err != nil {
+			return
 		}
 	}
 
@@ -241,12 +248,12 @@ func handleReddit(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 		log.Println(err)
 	}
 
-	videoLink := getRedditVideoLink(u)
+	videoLink := getRedditVideoLink(u, auth)
 	if videoLink == nil {
 		return
 	}
 	if videoLink.Host == "v.redd.it" {
-		videoFile := getRedditVideoFile(videoLink.String(), guild)
+		videoFile := getRedditVideoFile(videoLink.String(), guild, auth)
 
 		if len(videoFile) == 0 {
 			_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
