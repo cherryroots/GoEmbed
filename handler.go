@@ -95,12 +95,12 @@ func handleInstagram(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 	if strings.Contains(u.Path, "/stories/") {
 		u.RawQuery = ""
 
-		// get user from url
+		// get user from u2
 		user := strings.Split(u.Path, "/")[2]
-		postid := strings.Split(u.Path, "/")[3]
+		postID := strings.Split(u.Path, "/")[3]
 
-		url := "https://instagram-scraper-2022.p.rapidapi.com/ig/user_id/?user=" + user
-		req, _ := http.NewRequest("GET", url, nil)
+		u2 := "https://instagram-scraper-2022.p.rapidapi.com/ig/user_id/?user=" + user
+		req, _ := http.NewRequest("GET", u2, nil)
 		req.Header.Add("X-RapidAPI-Key", "66uH5cmqYXmshLAfsZcC3khMQsH1p1WK8Jjjsni8nzqEJ6lgM2")
 		req.Header.Add("X-RapidAPI-Host", "instagram-scraper-2022.p.rapidapi.com")
 		res1, err := http.DefaultClient.Do(req)
@@ -110,15 +110,15 @@ func handleInstagram(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 		defer res1.Body.Close()
 		body, _ := io.ReadAll(res1.Body)
 
-		userId := gjson.Get(string(body), "id").String()
+		userID := gjson.Get(string(body), "id").String()
 		// retry until we get a response with images or videos (sometimes it takes a few tries)
 
 		// sleep for 1 second
 		time.Sleep(1 * time.Second)
 
 		for i := 0; i < 5; i++ {
-			url = fmt.Sprintf("https://instagram-scraper-2022.p.rapidapi.com/ig/get_stories_hd/?id_user=%s&id_stories=%s", userId, postid)
-			req, _ = http.NewRequest("GET", url, nil)
+			u2 = fmt.Sprintf("https://instagram-scraper-2022.p.rapidapi.com/ig/get_stories_hd/?id_user=%s&id_stories=%s", userID, postID)
+			req, _ = http.NewRequest("GET", u2, nil)
 			req.Header.Add("X-RapidAPI-Key", "66uH5cmqYXmshLAfsZcC3khMQsH1p1WK8Jjjsni8nzqEJ6lgM2")
 			req.Header.Add("X-RapidAPI-Host", "instagram-scraper-2022.p.rapidapi.com")
 
@@ -140,20 +140,19 @@ func handleInstagram(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 			if gjson.Get(string(body), "answer").Exists() && gjson.Get(string(body), "answer").String() == "bad" {
 				time.Sleep(time.Duration(2*(i+1)) * time.Second)
 				continue
-			} else {
-				if len(images) == 0 && len(videos) == 0 {
-					// send message that the story is not available if we didn't get any images or videos
-					msg, _ := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-						Content:   "This story is not available",
-						Reference: m.Reference(),
-					})
-					// delete the response message after 5 seconds
-					time.Sleep(5 * time.Second)
-					s.ChannelMessageDelete(msg.ChannelID, msg.ID)
-					break
-				}
+			}
+			if len(images) == 0 && len(videos) == 0 {
+				// send message that the story is not available if we didn't get any images or videos
+				msg, _ := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+					Content:   "This story is not available",
+					Reference: m.Reference(),
+				})
+				// delete the response message after 5 seconds
+				time.Sleep(5 * time.Second)
+				s.ChannelMessageDelete(msg.ChannelID, msg.ID)
 				break
 			}
+			break
 		}
 
 		if len(images) == 0 && len(videos) == 0 {
@@ -163,12 +162,12 @@ func handleInstagram(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 
 	if strings.Contains(u.Path, "/p/") || strings.Contains(u.Path, "/tv/") || strings.Contains(u.Path, "/reel/") {
 
-		// get id from url
+		// get id from u2
 		id := strings.Split(u.Path, "/")[2]
 
-		url := "https://instagram-scraper-2022.p.rapidapi.com/ig/post_info/?shortcode=" + id
+		u2 := "https://instagram-scraper-2022.p.rapidapi.com/ig/post_info/?shortcode=" + id
 
-		req, _ := http.NewRequest("GET", url, nil)
+		req, _ := http.NewRequest("GET", u2, nil)
 
 		req.Header.Add("X-RapidAPI-Key", os.Getenv("RAPIDAPI_KEY"))
 		req.Header.Add("X-RapidAPI-Host", "instagram-scraper-2022.p.rapidapi.com")
@@ -213,7 +212,6 @@ func handleInstagram(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 }
 
 func handleReddit(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
-
 	// remove query params
 	u.RawQuery = ""
 
@@ -253,7 +251,7 @@ func handleReddit(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 		return
 	}
 	if videoLink.Host == "v.redd.it" {
-		videoFile := getRedditVideoFile(videoLink.String(), guild, auth)
+		videoFile := getRedditVideoFile(videoLink.String(), guild)
 
 		if len(videoFile) == 0 {
 			_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
@@ -277,8 +275,8 @@ func handleReddit(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 		}
 	}
 	if videoLink.Host == "www.twitch.tv" || videoLink.Host == "clips.twitch.tv" {
-		vodid := getTwitchVodId(videoLink)
-		videoFile := getTwitchClipFile(vodid, guild)
+		vodID := getTwitchVodID(videoLink)
+		videoFile := getTwitchClipFile(vodID, guild)
 
 		if len(videoFile) == 0 {
 			_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
@@ -304,14 +302,14 @@ func handleReddit(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 }
 
 func handleTwitch(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
-	vodid := getTwitchVodId(u)
+	vodID := getTwitchVodID(u)
 
 	guild, err := s.Guild(m.GuildID)
 	if err != nil {
 		log.Println(err)
 	}
 
-	videoFile := getTwitchClipFile(vodid, guild)
+	videoFile := getTwitchClipFile(vodID, guild)
 
 	if len(videoFile) == 0 {
 		_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
@@ -356,11 +354,16 @@ func handleTiktok(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 		}
 	}
 
+	guild, err := s.Guild(m.GuildID)
+	if err != nil {
+		log.Println(err)
+	}
+
 	// get the video linl
-	mediaUrl := getTikTokVideoLink(getTikTokID(u.String()))
+	mediaURL := getTikTokVideoLink(u.String())
 
 	// get the video file
-	videoFile := getTikTokFile(mediaUrl)
+	videoFile := getTikTokFile(mediaURL, guild)
 
 	if len(videoFile) == 0 {
 		_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
@@ -375,7 +378,7 @@ func handleTiktok(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 	}
 
 	// send message and handle filesize error
-	_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+	_, err = s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 		Files:      videoFile,
 		Components: []discordgo.MessageComponent{deleteMessageActionRow},
 		Reference:  m.Reference(),

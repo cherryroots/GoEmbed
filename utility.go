@@ -45,7 +45,7 @@ func requestRedditToken() (redditAuth, error) {
 func redditFullname(url string) string {
 	// extract https://www.reddit.com/r/birdstakingthetrain/comments/195emed/okay_everybody_out/
 	// to get the fullname : 195emed with regex
-	regex := regexp.MustCompile(`(?m)\/r\/[a-zA-Z0-9_]+\/comments\/([a-zA-Z0-9_]+)`)
+	regex := regexp.MustCompile(`(?m)/r/[a-zA-Z0-9_]+/comments/([a-zA-Z0-9_]+)`)
 	result := regex.FindStringSubmatch(url)
 	if len(result) > 1 {
 		return result[1]
@@ -53,28 +53,17 @@ func redditFullname(url string) string {
 	return ""
 }
 
-func getTikTokID(url string) string {
-	// parse an url like : https://www.tiktok.com/@therock/video/6817233442149108486?lang=en
-	// to get the video id : 6817233442149108486
-	regex := regexp.MustCompile(`(?m)\/video\/([0-9]+)`)
-	result := regex.FindStringSubmatch(url)
-	if len(result) > 1 {
-		return result[1]
-	}
-	return ""
-}
-
-func getTwitchVodId(url *url.URL) string {
-	var vodid string
+func getTwitchVodID(url *url.URL) string {
+	var vodID string
 	if url.Host == "clips.twitch.tv" {
-		vodid = strings.Split(url.Path, "/")[1]
+		vodID = strings.Split(url.Path, "/")[1]
 	} else if url.Host == "www.twitch.tv" {
 		if !strings.Contains(url.Path, "/clip/") {
 			return ""
 		}
-		vodid = strings.Split(url.Path, "/")[3]
+		vodID = strings.Split(url.Path, "/")[3]
 	}
-	return vodid
+	return vodID
 }
 
 func getRedditVideoLink(u *url.URL, auth redditAuth) *url.URL {
@@ -97,15 +86,15 @@ func getRedditVideoLink(u *url.URL, auth redditAuth) *url.URL {
 
 	// Get video link
 	// regex for clips.twitch.tv
-	regex := regexp.MustCompile(`(?m)clips\.twitch\.tv\/([a-zA-Z0-9_-]+)|(?m)www\.twitch\.tv\/[a-zA-Z0-9_-]+\/clip\/([a-zA-Z0-9_-]+)`)
+	regex := regexp.MustCompile(`(?m)clips\.twitch\.tv/([a-zA-Z0-9_-]+)|(?m)www\.twitch\.tv/[a-zA-Z0-9_-]+/clip/([a-zA-Z0-9_-]+)`)
 	result := regex.FindStringSubmatch(string(body))
 	if len(result) > 1 {
-		fullUrl := "https://" + result[0]
-		u, _ := url.Parse(fullUrl)
+		fullURL := "https://" + result[0]
+		u, _ := url.Parse(fullURL)
 		return u
 	}
 
-	regex = regexp.MustCompile(`(?m)dash_url\": \"(.*?)\"`)
+	regex = regexp.MustCompile(`(?m)dash_url": "(.*?)"`)
 	result = regex.FindStringSubmatch(string(body))
 	if len(result) > 1 {
 		u, _ := url.Parse(result[1])
@@ -136,8 +125,8 @@ func followRedirect(u *url.URL, auth redditAuth) (*url.URL, error) {
 
 func getInstagramPostLinks(body string) (images []string, videos []string) {
 	mediaType := gjson.Get(body, "__typename").String()
-	imageLinks := []string{}
-	videoLinks := []string{}
+	var imageLinks []string
+	var videoLinks []string
 	if mediaType == "GraphVideo" {
 		link := gjson.Get(body, "video_url").String()
 		videoLinks = append(videoLinks, link)
@@ -161,11 +150,11 @@ func getInstagramPostLinks(body string) (images []string, videos []string) {
 	return imageLinks, videoLinks
 }
 
-func getTikTokVideoLink(id string) string {
-	apiUrl := "https://api16-normal-c-useast1a.tiktokv.com/aweme/v1/feed/?aweme_id=" + id
+func getTikTokVideoLink(url string) string {
+	apiURL := "http://api.douyin.wtf/api?url=" + url + "&minimal=true"
 	// get api response
 	client := &http.Client{}
-	req, _ := http.NewRequest("GET", apiUrl, nil)
+	req, _ := http.NewRequest("GET", apiURL, nil)
 	req.Header.Add("user-agent", "'User-Agent', 'TikTok 26.2.0 rv:262018 (iPhone; iOS 14.4.2; en_US) Cronet'")
 	req.Header.Add("sec-fetch-site", "same-origin")
 
@@ -179,28 +168,14 @@ func getTikTokVideoLink(id string) string {
 	if err != nil {
 		log.Println(err)
 	}
-	var jsonData map[string]interface{}
-	err = json.Unmarshal(body, &jsonData)
-	if err != nil {
-		log.Println(err)
-	}
 
-	mediaUrl := jsonData["aweme_list"].([]interface{})[0].(map[string]interface{})["video"].(map[string]interface{})["play_addr"].(map[string]interface{})["url_list"].([]interface{})[0].(string)
+	mediaURL := gjson.Get(string(body), "nwm_video_url").String()
 
 	defer resp.Body.Close()
-	return mediaUrl
+	return mediaURL
 }
 
-func GetId(url string) string {
-	regex := regexp.MustCompile(`/([a-zA-Z0-9_-]+)(?:\.[a-zA-Z0-9]+)?(?:\?|$|\/\?|\/$)`)
-	result := regex.FindStringSubmatch(url)
-	if len(result) > 1 {
-		return result[1]
-	}
-	return ""
-}
-
-func compressVideo(file *os.File, guild *discordgo.Guild) {
+func compressVideo(file *os.File, guild *discordgo.Guild, force bool) {
 	var maxSize int
 
 	if guild.PremiumTier == 0 {
@@ -215,7 +190,7 @@ func compressVideo(file *os.File, guild *discordgo.Guild) {
 
 	// check if video is smaller than max size
 	fileInfo, _ := file.Stat()
-	if fileInfo.Size() < int64(maxSize*1000000) {
+	if fileInfo.Size() < int64(maxSize*1000000) && !force {
 		return
 	}
 
@@ -240,13 +215,18 @@ func compressVideo(file *os.File, guild *discordgo.Guild) {
 
 	// compress video
 	cmd = exec.Command("ffmpeg",
-		"-i", file.Name(),
-		"-b:v", fmt.Sprintf("%fk", kbps),
+		"-vaapi_device", "/dev/dri/renderD128", // Specify the VAAPI device. May need to adjust the device path
+		"-hwaccel", "vaapi",
+		"-hwaccel_output_format", "vaapi", // Use VAAPI for output
+		"-i", file.Name(), // Input file
+		"-vf", "format=nv12|vaapi,hwupload", // Convert formats and upload frames to the GPU
+		"-c:v", "h264_vaapi", // Use the VAAPI H.264 encoder
+		"-b:v", fmt.Sprintf("%fk", kbps), // Video bitrate
 		"-minrate", fmt.Sprintf("%fk", kbps),
 		"-maxrate", fmt.Sprintf("%fk", kbps),
 		"-bufsize", fmt.Sprintf("%fk", kbps*2),
-		"-preset", "fast",
-		"-y", f.Name())
+		"-preset", "veryfast", // Preset (note: presets may not be the same as x264)
+		"-y", f.Name()) // Output file
 	err = cmd.Run()
 	if err != nil {
 		log.Println(err)
@@ -261,5 +241,4 @@ func compressVideo(file *os.File, guild *discordgo.Guild) {
 	if err != nil {
 		log.Println(err)
 	}
-
 }

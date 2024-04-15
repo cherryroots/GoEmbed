@@ -6,10 +6,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"path"
 	"regexp"
-	"strings"
-	"sync"
 	"syscall"
 
 	"github.com/bwmarrin/discordgo"
@@ -21,21 +18,21 @@ var deleteMessageButton = discordgo.Button{
 	Label:    "Delete Message",
 	Style:    discordgo.DangerButton,
 	CustomID: "delete_message",
-	Emoji:    discordgo.ComponentEmoji{Name: "❌"},
+	Emoji:    &discordgo.ComponentEmoji{Name: "❌"},
 }
 
 var reduceButton = discordgo.Button{
 	Label:    "Reduce",
 	Style:    discordgo.PrimaryButton,
 	CustomID: "reduce",
-	Emoji:    discordgo.ComponentEmoji{Name: "🔻"},
+	Emoji:    &discordgo.ComponentEmoji{Name: "🔻"},
 }
 
 var retryButton = discordgo.Button{
 	Label:    "Retry",
 	Style:    discordgo.PrimaryButton,
 	CustomID: "retry",
-	Emoji:    discordgo.ComponentEmoji{Name: "🔁"},
+	Emoji:    &discordgo.ComponentEmoji{Name: "🔁"},
 }
 
 var deleteMessageActionRow = discordgo.ActionsRow{
@@ -47,7 +44,6 @@ var instagramActionRow = discordgo.ActionsRow{
 }
 
 func init() {
-
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
@@ -97,10 +93,9 @@ func main() {
 	twScraper.Logout()
 
 	defer log.Println("Bot is now offline.")
-
 }
 
-func handleUrl(s *discordgo.Session, m *discordgo.Message, scraper *twitterscraper.Scraper, link string) {
+func handleURL(s *discordgo.Session, m *discordgo.Message, scraper *twitterscraper.Scraper, link string) {
 	u, err := url.Parse(link)
 	if err != nil {
 		return
@@ -136,7 +131,6 @@ func handleUrl(s *discordgo.Session, m *discordgo.Message, scraper *twitterscrap
 }
 
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate, scraper *twitterscraper.Scraper) {
-
 	if m.Author.ID == s.State.User.ID {
 		return
 	}
@@ -147,10 +141,10 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate, scraper *tw
 
 	mm := m.Message
 
-	regex := regexp.MustCompile(`(?m)[<]?(https?:\/\/[^\s<>]+)[>]?\b`)
+	regex := regexp.MustCompile(`(?m)<?(https?://[^\s<>]+)>?\b`)
 	result := regex.FindAllStringSubmatch(m.Content, -1)
 	for _, element := range result {
-		go handleUrl(s, mm, scraper, element[1])
+		go handleURL(s, mm, scraper, element[1])
 	}
 }
 
@@ -186,11 +180,11 @@ func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate, scr
 			if msg.Author.ID != i.Member.User.ID {
 				return
 			}
-			regex := regexp.MustCompile(`(?m)[<]?(https?:\/\/[^\s<>]+)[>]?\b`)
+			regex := regexp.MustCompile(`(?m)<?(https?://[^\s<>]+)>?\b`)
 			result := regex.FindAllStringSubmatch(msg.Content, -1)
 			for _, element := range result {
 				s.ChannelMessageDelete(i.ChannelID, i.Message.ID)
-				go handleUrl(s, msg, scraper, element[1])
+				go handleURL(s, msg, scraper, element[1])
 			}
 		}
 		if i.MessageComponentData().CustomID == "reduce" {
@@ -212,18 +206,14 @@ func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate, scr
 				Options:     []discordgo.SelectMenuOption{},
 			}
 
-			for count, attachment := range i.Message.Attachments {
-				mediaUrl, _ := url.Parse(attachment.URL)
-				// remove query params
-				mediaUrl.RawQuery = ""
+			for count := range i.Message.Attachments {
 				attachmentSelectMenu.Options = append(attachmentSelectMenu.Options, discordgo.SelectMenuOption{
 					Label: fmt.Sprint(count + 1),
-					Value: mediaUrl.String(),
-					Emoji: discordgo.ComponentEmoji{Name: "⭐"},
+					Value: fmt.Sprint(count),
 				})
 			}
 
-			var reduceActionRow = discordgo.ActionsRow{
+			reduceActionRow := discordgo.ActionsRow{
 				Components: []discordgo.MessageComponent{attachmentSelectMenu},
 			}
 
@@ -248,45 +238,21 @@ func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate, scr
 			}
 
 			files := make([]*discordgo.File, 0)
-			emptyAttachment := make([]*discordgo.MessageAttachment, 0)
+			newAttachments := make([]*discordgo.MessageAttachment, 0)
 
-			var wg sync.WaitGroup
-			wg.Add(len(i.MessageComponentData().Values))
-			for _, url := range i.MessageComponentData().Values {
-				go func(url string) {
-					defer wg.Done()
-					extension := strings.TrimPrefix(path.Ext(url), url)
-					f, err := os.CreateTemp("", "discordattachment*"+extension)
-					if err != nil {
-						return
+			for count, attachment := range i.Message.Attachments {
+				for _, value := range i.MessageComponentData().Values {
+					if value == fmt.Sprint(count) {
+						newAttachments = append(newAttachments, attachment)
 					}
-
-					err = downloadFile(f.Name(), url)
-					if err != nil {
-						return
-					}
-
-					file, err := os.Open(f.Name())
-					if err != nil {
-						return
-
-					}
-
-					files = append(files, &discordgo.File{
-						Name:   "attachment" + extension,
-						Reader: file,
-					})
-
-					defer os.Remove(f.Name())
-				}(url)
+				}
 			}
-			wg.Wait()
 
 			if msg.Author.ID == i.Member.User.ID {
 				_, err = s.ChannelMessageEditComplex(&discordgo.MessageEdit{
 					ID:          i.Message.ID,
 					Channel:     i.Message.ChannelID,
-					Attachments: &emptyAttachment,
+					Attachments: &newAttachments,
 					Files:       files,
 				})
 				if err != nil {

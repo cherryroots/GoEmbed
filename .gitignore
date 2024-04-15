@@ -1,6 +1,10 @@
 .env
+.idea
 goembed
 __debug*
 tmp
 yt-dlp
 TwitchDownloaderCLI
+/.uuid
+/COPYRIGHT.txt
+/THIRD-PARTY-LICENSES.txt

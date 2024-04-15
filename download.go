@@ -56,7 +56,7 @@ func getTwitterVideoFiles(tweet *twitterscraper.Tweet, guild *discordgo.Guild) [
 		}
 
 		// compress video if it is too big
-		compressVideo(file, guild)
+		compressVideo(file, guild, false)
 
 		file, err = os.Open(f.Name())
 		if err != nil {
@@ -109,7 +109,7 @@ func getTwitterVideoFiles(tweet *twitterscraper.Tweet, guild *discordgo.Guild) [
 	return files
 }
 
-func getRedditVideoFile(url string, guild *discordgo.Guild, auth redditAuth) []*discordgo.File {
+func getRedditVideoFile(url string, guild *discordgo.Guild) []*discordgo.File {
 	// Create a temp file starting with twitter and ending with .mp4
 	mpdf, err := os.CreateTemp("", "reddit*.mpd")
 	if err != nil {
@@ -192,7 +192,7 @@ func getRedditVideoFile(url string, guild *discordgo.Guild, auth redditAuth) []*
 		return nil
 	}
 
-	compressVideo(file, guild)
+	compressVideo(file, guild, false)
 
 	file, err = os.Open(cf.Name())
 	if err != nil {
@@ -229,7 +229,7 @@ func getTwitchClipFile(vodid string, guild *discordgo.Guild) []*discordgo.File {
 	}
 
 	// compress video if it is too big
-	compressVideo(file, guild)
+	compressVideo(file, guild, false)
 
 	file, err = os.Open(f.Name())
 	if err != nil {
@@ -317,7 +317,7 @@ func getInstagramFiles(images []string, videos []string) ([]*discordgo.File, []*
 	return imageFiles, videoFiles
 }
 
-func getTikTokFile(url string) []*discordgo.File {
+func getTikTokFile(url string, guild *discordgo.Guild) []*discordgo.File {
 	// Create a temp file starting with twitter and ending with .mp4
 	f, err := os.CreateTemp("", "tiktok*.mp4")
 	if err != nil {
@@ -330,6 +330,14 @@ func getTikTokFile(url string) []*discordgo.File {
 	}
 
 	file, err := os.Open(f.Name())
+	if err != nil {
+		return nil
+	}
+
+	// compress video if it is too big
+	compressVideo(file, guild, false)
+
+	file, err = os.Open(f.Name())
 	if err != nil {
 		return nil
 	}
@@ -365,7 +373,7 @@ func getVimeoFile(u string, guild *discordgo.Guild) []*discordgo.File {
 	}
 
 	// compress video if it is too big
-	compressVideo(file, guild)
+	compressVideo(file, guild, false)
 
 	file, err = os.Open(f.Name())
 	if err != nil {
