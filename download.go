@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"sync"
 
@@ -15,10 +16,10 @@ import (
 )
 
 func downloadFile(filepath string, url string) error {
-
 	// Get the data
 	resp, err := http.Get(url)
 	if err != nil {
+		log.Println(err)
 		return err
 	}
 	defer resp.Body.Close()
@@ -26,6 +27,7 @@ func downloadFile(filepath string, url string) error {
 	// Create the file
 	out, err := os.Create(filepath)
 	if err != nil {
+		log.Println(err)
 		return err
 	}
 	defer out.Close()
@@ -42,16 +44,19 @@ func getTwitterVideoFiles(tweet *twitterscraper.Tweet, guild *discordgo.Guild) [
 		// Create a temp file starting with twitter and ending with .mp4
 		f, err := os.CreateTemp("", "twitter*.mp4")
 		if err != nil {
+			log.Println(err)
 			continue
 		}
 
 		err = downloadFile(f.Name(), video.URL)
 		if err != nil {
+			log.Println(err)
 			continue
 		}
 
 		file, err := os.Open(f.Name())
 		if err != nil {
+			log.Println(err)
 			continue
 		}
 
@@ -60,6 +65,7 @@ func getTwitterVideoFiles(tweet *twitterscraper.Tweet, guild *discordgo.Guild) [
 
 		file, err = os.Open(f.Name())
 		if err != nil {
+			log.Println(err)
 			return nil
 		}
 
@@ -75,11 +81,13 @@ func getTwitterVideoFiles(tweet *twitterscraper.Tweet, guild *discordgo.Guild) [
 		// Create a temp file starting with twitter and ending with .mp4
 		f, err := os.CreateTemp("", "twitter*.mp4")
 		if err != nil {
+			log.Println(err)
 			continue
 		}
 
 		err = downloadFile(f.Name(), gif.URL)
 		if err != nil {
+			log.Println(err)
 			continue
 		}
 
@@ -95,6 +103,7 @@ func getTwitterVideoFiles(tweet *twitterscraper.Tweet, guild *discordgo.Guild) [
 
 		file, err := os.Open(f.Name() + ".gif")
 		if err != nil {
+			log.Println(err)
 			continue
 		}
 
@@ -113,21 +122,25 @@ func getRedditVideoFile(url string, guild *discordgo.Guild) []*discordgo.File {
 	// Create a temp file starting with twitter and ending with .mp4
 	mpdf, err := os.CreateTemp("", "reddit*.mpd")
 	if err != nil {
+		log.Println(err)
 		return nil
 	}
 	defer os.Remove(mpdf.Name())
 	vf, err := os.CreateTemp("", "reddit*.mp4")
 	if err != nil {
+		log.Println(err)
 		return nil
 	}
 	defer os.Remove(vf.Name())
 	af, err := os.CreateTemp("", "reddit*.mp4")
 	if err != nil {
+		log.Println(err)
 		return nil
 	}
 	defer os.Remove(af.Name())
 	cf, err := os.CreateTemp("", "reddit*.mp4")
 	if err != nil {
+		log.Println(err)
 		return nil
 	}
 	defer os.Remove(cf.Name())
@@ -136,10 +149,12 @@ func getRedditVideoFile(url string, guild *discordgo.Guild) []*discordgo.File {
 
 	err = downloadFile(mpdf.Name(), url)
 	if err != nil {
+		log.Println(err)
 		return nil
 	}
 	mpdfile, err := os.ReadFile(mpdf.Name())
 	if err != nil {
+		log.Println(err)
 		return nil
 	}
 
@@ -189,6 +204,7 @@ func getRedditVideoFile(url string, guild *discordgo.Guild) []*discordgo.File {
 
 	file, err := os.Open(cf.Name())
 	if err != nil {
+		log.Println(err)
 		return nil
 	}
 
@@ -196,6 +212,7 @@ func getRedditVideoFile(url string, guild *discordgo.Guild) []*discordgo.File {
 
 	file, err = os.Open(cf.Name())
 	if err != nil {
+		log.Println(err)
 		return nil
 	}
 
@@ -207,7 +224,6 @@ func getRedditVideoFile(url string, guild *discordgo.Guild) []*discordgo.File {
 	}
 
 	return videoFile
-
 }
 
 func getTwitchClipFile(vodid string, guild *discordgo.Guild) []*discordgo.File {
@@ -217,14 +233,20 @@ func getTwitchClipFile(vodid string, guild *discordgo.Guild) []*discordgo.File {
 		return nil
 	}
 
-	cmd := exec.Command("./TwitchDownloaderCLI", "clipdownload", "--id", vodid, "-o", f.Name())
-	err = cmd.Run()
+	err = os.Setenv("DOTNET_BUNDLE_EXTRACT_BASE_DIR", filepath.Join("./TwitchDownloaderCLI", ".net"))
 	if err != nil {
+		log.Println(err)
+	}
+
+	out, err := exec.Command("./TwitchDownloaderCLI/TwitchDownloaderCLI", "clipdownload", "--id", vodid, "-o", f.Name()).CombinedOutput()
+	if err != nil {
+		log.Println(out)
 		return nil
 	}
 
 	file, err := os.Open(f.Name())
 	if err != nil {
+		log.Println(err)
 		return nil
 	}
 
@@ -233,6 +255,7 @@ func getTwitchClipFile(vodid string, guild *discordgo.Guild) []*discordgo.File {
 
 	file, err = os.Open(f.Name())
 	if err != nil {
+		log.Println(err)
 		return nil
 	}
 
@@ -261,18 +284,20 @@ func getInstagramFiles(images []string, videos []string) ([]*discordgo.File, []*
 			// Create a temp file starting with twitter and ending with .mp4
 			f, err := os.CreateTemp("", "instagram*.jpg")
 			if err != nil {
+				log.Println(err)
 				return
 			}
 
 			err = downloadFile(f.Name(), image)
 			if err != nil {
+				log.Println(err)
 				return
 			}
 
 			file, err := os.Open(f.Name())
 			if err != nil {
+				log.Println(err)
 				return
-
 			}
 
 			imageFiles = append(imageFiles, &discordgo.File{
@@ -290,18 +315,20 @@ func getInstagramFiles(images []string, videos []string) ([]*discordgo.File, []*
 			// Create a temp file starting with twitter and ending with .mp4
 			f, err := os.CreateTemp("", "instagram*.mp4")
 			if err != nil {
+				log.Println(err)
 				return
 			}
 
 			err = downloadFile(f.Name(), video)
 			if err != nil {
+				log.Println(err)
 				return
 			}
 
 			file, err := os.Open(f.Name())
 			if err != nil {
+				log.Println(err)
 				return
-
 			}
 
 			videoFiles = append(videoFiles, &discordgo.File{
@@ -321,16 +348,19 @@ func getTikTokFile(url string, guild *discordgo.Guild) []*discordgo.File {
 	// Create a temp file starting with twitter and ending with .mp4
 	f, err := os.CreateTemp("", "tiktok*.mp4")
 	if err != nil {
+		log.Println(err)
 		return nil
 	}
 
 	err = downloadFile(f.Name(), url)
 	if err != nil {
+		log.Println(err)
 		return nil
 	}
 
 	file, err := os.Open(f.Name())
 	if err != nil {
+		log.Println(err)
 		return nil
 	}
 
@@ -339,6 +369,7 @@ func getTikTokFile(url string, guild *discordgo.Guild) []*discordgo.File {
 
 	file, err = os.Open(f.Name())
 	if err != nil {
+		log.Println(err)
 		return nil
 	}
 
@@ -358,6 +389,7 @@ func getVimeoFile(u string, guild *discordgo.Guild) []*discordgo.File {
 	// Create a temp file starting with twitter and ending with .mp4
 	f, err := os.CreateTemp("", "vimeo*.mp4")
 	if err != nil {
+		log.Println(err)
 		return nil
 	}
 
@@ -369,6 +401,7 @@ func getVimeoFile(u string, guild *discordgo.Guild) []*discordgo.File {
 
 	file, err := os.Open(f.Name())
 	if err != nil {
+		log.Println(err)
 		return nil
 	}
 
@@ -377,6 +410,7 @@ func getVimeoFile(u string, guild *discordgo.Guild) []*discordgo.File {
 
 	file, err = os.Open(f.Name())
 	if err != nil {
+		log.Println(err)
 		return nil
 	}
 

@@ -29,6 +29,7 @@ func handleTwitter(s *discordgo.Session, m *discordgo.Message, scraper *twitters
 
 	tweet, err := scraper.GetTweet(id)
 	if err != nil {
+		log.Println(err)
 		return
 	}
 
@@ -226,17 +227,20 @@ func handleReddit(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 		// get /video url
 		u, err = followRedirect(u, auth)
 		if err != nil {
+			log.Println(err)
 			return
 		}
 		// get full url
 		u, err = followRedirect(u, auth)
 		if err != nil {
+			log.Println(err)
 			return
 		}
 	} else if u.Host == "www.reddit.com" && strings.Contains(u.Path, "/s/") {
 		// get full url
 		u, err = followRedirect(u, auth)
 		if err != nil {
+			log.Println(err)
 			return
 		}
 	}
@@ -248,6 +252,7 @@ func handleReddit(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 
 	videoLink := getRedditVideoLink(u, auth)
 	if videoLink == nil {
+		log.Println(err)
 		return
 	}
 	if videoLink.Host == "v.redd.it" {
@@ -302,13 +307,12 @@ func handleReddit(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 }
 
 func handleTwitch(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
-	vodID := getTwitchVodID(u)
-
 	guild, err := s.Guild(m.GuildID)
 	if err != nil {
 		log.Println(err)
 	}
 
+	vodID := getTwitchVodID(u)
 	videoFile := getTwitchClipFile(vodID, guild)
 
 	if len(videoFile) == 0 {

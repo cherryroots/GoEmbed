@@ -150,15 +150,10 @@ func getInstagramPostLinks(body string) (images []string, videos []string) {
 	return imageLinks, videoLinks
 }
 
-func getTikTokVideoLink(url string) string {
-	apiURL := "http://api.douyin.wtf/api?url=" + url + "&minimal=true"
+func getTikTokVideoLink(u string) string {
+	apiURL := "https://douyin.wtf/api/hybrid/video_data?url=" + url.QueryEscape(u) + "&minimal=true"
 	// get api response
-	client := &http.Client{}
-	req, _ := http.NewRequest("GET", apiURL, nil)
-	req.Header.Add("user-agent", "'User-Agent', 'TikTok 26.2.0 rv:262018 (iPhone; iOS 14.4.2; en_US) Cronet'")
-	req.Header.Add("sec-fetch-site", "same-origin")
-
-	resp, err := client.Do(req)
+	resp, err := http.Get(apiURL)
 	if err != nil {
 		log.Println(err)
 	}
@@ -169,7 +164,7 @@ func getTikTokVideoLink(url string) string {
 		log.Println(err)
 	}
 
-	mediaURL := gjson.Get(string(body), "nwm_video_url").String()
+	mediaURL := gjson.Get(string(body), "data.video_data.nwm_video_url").String()
 
 	defer resp.Body.Close()
 	return mediaURL
