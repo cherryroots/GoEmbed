@@ -102,7 +102,7 @@ func handleInstagram(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 
 		u2 := "https://instagram-scraper-2022.p.rapidapi.com/ig/user_id/?user=" + user
 		req, _ := http.NewRequest("GET", u2, nil)
-		req.Header.Add("X-RapidAPI-Key", "66uH5cmqYXmshLAfsZcC3khMQsH1p1WK8Jjjsni8nzqEJ6lgM2")
+		req.Header.Add("X-RapidAPI-Key", os.Getenv("RAPIDAPI_KEY"))
 		req.Header.Add("X-RapidAPI-Host", "instagram-scraper-2022.p.rapidapi.com")
 		res1, err := http.DefaultClient.Do(req)
 		if err != nil {
@@ -120,7 +120,7 @@ func handleInstagram(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 		for i := 0; i < 5; i++ {
 			u2 = fmt.Sprintf("https://instagram-scraper-2022.p.rapidapi.com/ig/get_stories_hd/?id_user=%s&id_stories=%s", userID, postID)
 			req, _ = http.NewRequest("GET", u2, nil)
-			req.Header.Add("X-RapidAPI-Key", "66uH5cmqYXmshLAfsZcC3khMQsH1p1WK8Jjjsni8nzqEJ6lgM2")
+			req.Header.Add("X-RapidAPI-Key", os.Getenv("RAPIDAPI_KEY"))
 			req.Header.Add("X-RapidAPI-Host", "instagram-scraper-2022.p.rapidapi.com")
 
 			res, err := http.DefaultClient.Do(req)

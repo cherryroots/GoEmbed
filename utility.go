@@ -151,9 +151,11 @@ func getInstagramPostLinks(body string) (images []string, videos []string) {
 }
 
 func getTikTokVideoLink(u string) string {
-	apiURL := "https://douyin.wtf/api/hybrid/video_data?url=" + url.QueryEscape(u) + "&minimal=true"
-	// get api response
-	resp, err := http.Get(apiURL)
+	apiURL := "https://tiktok-video-downloader-api.p.rapidapi.com/media?videoUrl=" + url.QueryEscape(u)
+	req, _ := http.NewRequest("GET", apiURL, nil)
+	req.Header.Add("X-RapidAPI-Key", os.Getenv("RAPIDAPI_KEY"))
+	req.Header.Add("X-RapidAPI-Host", "tiktok-video-downloader-api.p.rapidapi.com")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Println(err)
 	}
@@ -164,7 +166,7 @@ func getTikTokVideoLink(u string) string {
 		log.Println(err)
 	}
 
-	mediaURL := gjson.Get(string(body), "data.video_data.nwm_video_url").String()
+	mediaURL := gjson.Get(string(body), "downloadUrl").String()
 
 	defer resp.Body.Close()
 	return mediaURL
