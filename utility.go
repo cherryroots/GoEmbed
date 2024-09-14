@@ -57,7 +57,7 @@ func getTwitchVodID(url *url.URL) string {
 	var vodID string
 	if url.Host == "clips.twitch.tv" {
 		vodID = strings.Split(url.Path, "/")[1]
-	} else if url.Host == "www.twitch.tv" {
+	} else if url.Host == "www.twitch.tv" || url.Host == "twitch.tv" {
 		if !strings.Contains(url.Path, "/clip/") {
 			return ""
 		}
@@ -211,22 +211,25 @@ func compressVideo(file *os.File, guild *discordgo.Guild, force bool) {
 	kbps := ((float64(maxSize) / duration) * 0.85) * 8000
 
 	// compress video
-	cmd = exec.Command("ffmpeg",
-		"-vaapi_device", "/dev/dri/renderD128", // Specify the VAAPI device. May need to adjust the device path
+	os.Setenv("LIBVA_DRIVER_NAME", "iHD")
+	cmd = exec.Command(
+		"ffmpeg",
 		"-hwaccel", "vaapi",
-		"-hwaccel_output_format", "vaapi", // Use VAAPI for output
-		"-i", file.Name(), // Input file
-		"-vf", "format=nv12|vaapi,hwupload", // Convert formats and upload frames to the GPU
-		"-c:v", "h264_vaapi", // Use the VAAPI H.264 encoder
-		"-b:v", fmt.Sprintf("%fk", kbps), // Video bitrate
+		"-hwaccel_device", "/dev/dri/renderD128",
+		"-hwaccel_output_format", "vaapi",
+		"-i", file.Name(),
+		"-vf", "format=nv12|vaapi,hwupload",
+		"-c:v", "h264_vaapi",
+		"-b:v", fmt.Sprintf("%fk", kbps),
 		"-minrate", fmt.Sprintf("%fk", kbps),
 		"-maxrate", fmt.Sprintf("%fk", kbps),
 		"-bufsize", fmt.Sprintf("%fk", kbps*2),
-		"-preset", "veryfast", // Preset (note: presets may not be the same as x264)
-		"-y", f.Name()) // Output file
-	err = cmd.Run()
+		"-preset", "veryfast",
+		"-y", f.Name())
+	out, err = cmd.CombinedOutput()
 	if err != nil {
-		log.Println(err)
+		log.Printf(string(out))
+		log.Printf("Error compressing video: %v\n", err)
 	}
 
 	// replace old file with new file

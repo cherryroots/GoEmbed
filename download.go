@@ -98,7 +98,8 @@ func getTwitterVideoFiles(tweet *twitterscraper.Tweet, guild *discordgo.Guild) [
 			f.Name()+".gif")
 		err = cmd.Run()
 		if err != nil {
-			log.Println(err)
+			log.Printf("Error converting video to gif: %v", err)
+			continue
 		}
 
 		file, err := os.Open(f.Name() + ".gif")
@@ -192,13 +193,13 @@ func getRedditVideoFile(url string, guild *discordgo.Guild) []*discordgo.File {
 		cmd := exec.Command("ffmpeg", "-i", filenames[0], "-i", filenames[1], "-c", "copy", "-y", filenames[2])
 		err = cmd.Run()
 		if err != nil {
-			log.Println(err)
+			log.Printf("Error merging video and audio: %v", err)
 		}
 	} else {
 		cmd := exec.Command("ffmpeg", "-i", filenames[0], "-c", "copy", "-y", filenames[2])
 		err = cmd.Run()
 		if err != nil {
-			log.Println(err)
+			log.Printf("Error merging video and audio: %v", err)
 		}
 	}
 
@@ -238,9 +239,10 @@ func getTwitchClipFile(vodid string, guild *discordgo.Guild) []*discordgo.File {
 		log.Println(err)
 	}
 
-	out, err := exec.Command("./TwitchDownloaderCLI/TwitchDownloaderCLI", "clipdownload", "--id", vodid, "-o", f.Name()).CombinedOutput()
+	out, err := exec.Command("./TwitchDownloaderCLI/TwitchDownloaderCLI", "clipdownload", "--collision", "overwrite", "--id", vodid, "-o", f.Name()).CombinedOutput()
 	if err != nil {
-		log.Println(out)
+		log.Println(string(out))
+		log.Printf("Failed to download Twitch Clip id: %s: %s", vodid, err)
 		return nil
 	}
 
@@ -396,6 +398,7 @@ func getVimeoFile(u string, guild *discordgo.Guild) []*discordgo.File {
 	out, err := exec.Command("./yt-dlp", "-o", f.Name(), "--force-overwrites", u).CombinedOutput()
 	if err != nil {
 		log.Println(string(out))
+		log.Printf("Failed to download video: %s", err)
 		return nil
 	}
 

@@ -52,8 +52,8 @@ func init() {
 
 func main() {
 	Token := os.Getenv("TOKEN")
-	TwUsername := os.Getenv("TWUSERNAME")
-	TwPassword := os.Getenv("TWPASSWORD")
+	// TwUsername := os.Getenv("TWUSERNAME")
+	// TwPassword := os.Getenv("TWPASSWORD")
 
 	dg, err := discordgo.New("Bot " + Token)
 	if err != nil {
@@ -62,10 +62,12 @@ func main() {
 	}
 
 	twScraper := twitterscraper.New()
-	err = twScraper.Login(TwUsername, TwPassword)
-	if err != nil {
-		panic(err)
-	}
+	/*
+		err = twScraper.Login(TwUsername, TwPassword)
+		if err != nil {
+			panic(err)
+		}
+	*/
 
 	dg.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
 		messageCreate(s, m, twScraper)
@@ -101,12 +103,22 @@ func handleURL(s *discordgo.Session, m *discordgo.Message, scraper *twitterscrap
 		return
 	}
 
+	if m.GuildID == "" {
+		channel, err := s.Channel(m.ChannelID)
+		if err != nil {
+			log.Println(err)
+		}
+		m.GuildID = channel.GuildID
+	}
+
 	if u.Host == "twitter.com" || u.Host == "mobile.twitter.com" || u.Host == "www.twitter.com" {
-		handleTwitter(s, m, scraper, u)
+		// handleTwitter(s, m, scraper, u)
+		return
 	}
 
 	if u.Host == "x.com" || u.Host == "mobile.x.com" || u.Host == "www.x.com" {
-		handleTwitter(s, m, scraper, u)
+		// handleTwitter(s, m, scraper, u)
+		return
 	}
 
 	if u.Host == "www.instagram.com" || u.Host == "instagram.com" {
@@ -183,9 +195,9 @@ func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate, scr
 			regex := regexp.MustCompile(`(?m)<?(https?://[^\s<>]+)>?\b`)
 			result := regex.FindAllStringSubmatch(msg.Content, -1)
 			for _, element := range result {
-				s.ChannelMessageDelete(i.ChannelID, i.Message.ID)
 				go handleURL(s, msg, scraper, element[1])
 			}
+			s.ChannelMessageDelete(i.ChannelID, i.Message.ID)
 		}
 		if i.MessageComponentData().CustomID == "reduce" {
 			msg, err := s.ChannelMessage(i.ChannelID, i.Message.MessageReference.MessageID)
