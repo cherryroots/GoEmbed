@@ -11,7 +11,6 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/joho/godotenv"
-	twitterscraper "github.com/n0madic/twitter-scraper"
 )
 
 var deleteMessageButton = discordgo.Button{
@@ -61,20 +60,12 @@ func main() {
 		return
 	}
 
-	twScraper := twitterscraper.New()
-	/*
-		err = twScraper.Login(TwUsername, TwPassword)
-		if err != nil {
-			panic(err)
-		}
-	*/
-
 	dg.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
-		messageCreate(s, m, twScraper)
+		messageCreate(s, m)
 	})
 
 	dg.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		interactionCreate(s, i, twScraper)
+		interactionCreate(s, i)
 	})
 
 	dg.Identify.Intents = discordgo.IntentsGuildMessages
@@ -92,12 +83,11 @@ func main() {
 	<-sc
 
 	dg.Close()
-	twScraper.Logout()
 
 	defer log.Println("Bot is now offline.")
 }
 
-func handleURL(s *discordgo.Session, m *discordgo.Message, scraper *twitterscraper.Scraper, link string) {
+func handleURL(s *discordgo.Session, m *discordgo.Message, link string) {
 	u, err := url.Parse(link)
 	if err != nil {
 		return
@@ -112,17 +102,32 @@ func handleURL(s *discordgo.Session, m *discordgo.Message, scraper *twitterscrap
 	}
 
 	if u.Host == "twitter.com" || u.Host == "mobile.twitter.com" || u.Host == "www.twitter.com" {
-		// handleTwitter(s, m, scraper, u)
+		handleTwitter(s, m, u)
 		return
 	}
 
 	if u.Host == "x.com" || u.Host == "mobile.x.com" || u.Host == "www.x.com" {
-		// handleTwitter(s, m, scraper, u)
+		handleTwitter(s, m, u)
+		return
+	}
+
+	if u.Host == "threads.net" || u.Host == "www.threads.net" {
+		handleThreads(s, m, u)
+		return
+	}
+
+	if u.Host == "bsky.app" || u.Host == "www.bsky.app" {
+		handleBsky(s, m, u)
 		return
 	}
 
 	if u.Host == "www.instagram.com" || u.Host == "instagram.com" {
 		handleInstagram(s, m, u)
+		return
+	}
+
+	if u.Host == "www.tiktok.com" || u.Host == "tiktok.com" || u.Host == "vm.tiktok.com" {
+		handleTiktok(s, m, u)
 	}
 
 	if u.Host == "reddit.com" || u.Host == "v.redd.it" || u.Host == "www.reddit.com" || u.Host == "old.reddit.com" {
@@ -133,16 +138,12 @@ func handleURL(s *discordgo.Session, m *discordgo.Message, scraper *twitterscrap
 		handleTwitch(s, m, u)
 	}
 
-	if u.Host == "www.tiktok.com" || u.Host == "tiktok.com" || u.Host == "vm.tiktok.com" {
-		handleTiktok(s, m, u)
-	}
-
 	if u.Host == "www.vimeo.com" || u.Host == "vimeo.com" {
 		handleVimeo(s, m, u)
 	}
 }
 
-func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate, scraper *twitterscraper.Scraper) {
+func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == s.State.User.ID {
 		return
 	}
@@ -151,16 +152,14 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate, scraper *tw
 		return
 	}
 
-	mm := m.Message
-
 	regex := regexp.MustCompile(`(?m)<?(https?://[^\s<>]+)>?\b`)
 	result := regex.FindAllStringSubmatch(m.Content, -1)
 	for _, element := range result {
-		go handleURL(s, mm, scraper, element[1])
+		go handleURL(s, m.Message, element[1])
 	}
 }
 
-func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate, scraper *twitterscraper.Scraper) {
+func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if i.Type == discordgo.InteractionMessageComponent {
 		if i.MessageComponentData().CustomID == "delete_message" {
 			msg, err := s.ChannelMessage(i.ChannelID, i.Message.MessageReference.MessageID)
@@ -195,7 +194,7 @@ func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate, scr
 			regex := regexp.MustCompile(`(?m)<?(https?://[^\s<>]+)>?\b`)
 			result := regex.FindAllStringSubmatch(msg.Content, -1)
 			for _, element := range result {
-				go handleURL(s, msg, scraper, element[1])
+				go handleURL(s, msg, element[1])
 			}
 			s.ChannelMessageDelete(i.ChannelID, i.Message.ID)
 		}

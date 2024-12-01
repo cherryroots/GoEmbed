@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/tidwall/gjson"
 )
 
 type redditAuth struct {
@@ -53,17 +52,26 @@ func redditFullname(url string) string {
 	return ""
 }
 
-func getTwitchVodID(url *url.URL) string {
-	var vodID string
-	if url.Host == "clips.twitch.tv" {
-		vodID = strings.Split(url.Path, "/")[1]
-	} else if url.Host == "www.twitch.tv" || url.Host == "twitch.tv" {
-		if !strings.Contains(url.Path, "/clip/") {
-			return ""
-		}
-		vodID = strings.Split(url.Path, "/")[3]
+func supressEmbed(s *discordgo.Session, m *discordgo.Message) {
+	_, err := s.ChannelMessageEditComplex(&discordgo.MessageEdit{
+		ID:      m.ID,
+		Channel: m.ChannelID,
+		Flags:   discordgo.MessageFlagsSuppressEmbeds,
+	})
+	if err != nil {
+		return
 	}
-	return vodID
+}
+
+func getTwitchVodID(url *url.URL) string {
+	if url.Host == "clips.twitch.tv" {
+		return strings.Split(url.Path, "/")[1]
+	} else if url.Host == "www.twitch.tv" || url.Host == "twitch.tv" {
+		if strings.Contains(url.Path, "/clip/") {
+			return strings.Split(url.Path, "/")[3]
+		}
+	}
+	return ""
 }
 
 func getRedditVideoLink(u *url.URL, auth redditAuth) *url.URL {
@@ -123,55 +131,6 @@ func followRedirect(u *url.URL, auth redditAuth) (*url.URL, error) {
 	return u, nil
 }
 
-func getInstagramPostLinks(body string) (images []string, videos []string) {
-	mediaType := gjson.Get(body, "__typename").String()
-	var imageLinks []string
-	var videoLinks []string
-	if mediaType == "GraphVideo" {
-		link := gjson.Get(body, "video_url").String()
-		videoLinks = append(videoLinks, link)
-	}
-	if mediaType == "GraphImage" {
-		link := gjson.Get(body, "display_url").String()
-		imageLinks = append(imageLinks, link)
-	}
-	if mediaType == "GraphSidecar" {
-		sidecarLinks := gjson.Get(body, "edge_sidecar_to_children.edges").Array()
-		for _, link := range sidecarLinks {
-			if link.Get("node.__typename").String() == "GraphVideo" {
-				videoLinks = append(videoLinks, link.Get("node.video_url").String())
-			}
-			if link.Get("node.__typename").String() == "GraphImage" {
-				imageLinks = append(imageLinks, link.Get("node.display_url").String())
-			}
-		}
-	}
-
-	return imageLinks, videoLinks
-}
-
-func getTikTokVideoLink(u string) string {
-	apiURL := "https://tiktok-video-downloader-api.p.rapidapi.com/media?videoUrl=" + url.QueryEscape(u)
-	req, _ := http.NewRequest("GET", apiURL, nil)
-	req.Header.Add("X-RapidAPI-Key", os.Getenv("RAPIDAPI_KEY"))
-	req.Header.Add("X-RapidAPI-Host", "tiktok-video-downloader-api.p.rapidapi.com")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		log.Println(err)
-	}
-
-	// parse the response json
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Println(err)
-	}
-
-	mediaURL := gjson.Get(string(body), "downloadUrl").String()
-
-	defer resp.Body.Close()
-	return mediaURL
-}
-
 func compressVideo(file *os.File, guild *discordgo.Guild, force bool) {
 	var maxSize int
 
@@ -188,6 +147,7 @@ func compressVideo(file *os.File, guild *discordgo.Guild, force bool) {
 	// check if video is smaller than max size
 	fileInfo, _ := file.Stat()
 	if fileInfo.Size() < int64(maxSize*1000000) && !force {
+		log.Printf("Video size is smaller than max size: %d of %d MB", fileInfo.Size()/1000000, maxSize)
 		return
 	}
 
@@ -208,7 +168,7 @@ func compressVideo(file *os.File, guild *discordgo.Guild, force bool) {
 		log.Println(err)
 	}
 	// megabyte per second
-	kbps := ((float64(maxSize) / duration) * 0.85) * 8000
+	kbps := ((float64(maxSize) / duration) * 0.80) * 8000
 
 	// compress video
 	os.Setenv("LIBVA_DRIVER_NAME", "iHD")

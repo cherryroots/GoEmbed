@@ -12,7 +12,6 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/mc2soft/mpd"
-	twitterscraper "github.com/n0madic/twitter-scraper"
 )
 
 func downloadFile(filepath string, url string) error {
@@ -35,88 +34,6 @@ func downloadFile(filepath string, url string) error {
 	// Write the body to file
 	_, err = io.Copy(out, resp.Body)
 	return err
-}
-
-func getTwitterVideoFiles(tweet *twitterscraper.Tweet, guild *discordgo.Guild) []*discordgo.File {
-	files := make([]*discordgo.File, 0)
-
-	for _, video := range tweet.Videos {
-		// Create a temp file starting with twitter and ending with .mp4
-		f, err := os.CreateTemp("", "twitter*.mp4")
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-
-		err = downloadFile(f.Name(), video.URL)
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-
-		file, err := os.Open(f.Name())
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-
-		// compress video if it is too big
-		compressVideo(file, guild, false)
-
-		file, err = os.Open(f.Name())
-		if err != nil {
-			log.Println(err)
-			return nil
-		}
-
-		files = append(files, &discordgo.File{
-			Name:   "video.mp4",
-			Reader: file,
-		})
-
-		defer os.Remove(f.Name())
-	}
-
-	for _, gif := range tweet.GIFs {
-		// Create a temp file starting with twitter and ending with .mp4
-		f, err := os.CreateTemp("", "twitter*.mp4")
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-
-		err = downloadFile(f.Name(), gif.URL)
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-
-		// convert mp4 to gif
-		cmd := exec.Command("ffmpeg",
-			"-i", f.Name(),
-			"-f", "gif",
-			f.Name()+".gif")
-		err = cmd.Run()
-		if err != nil {
-			log.Printf("Error converting video to gif: %v", err)
-			continue
-		}
-
-		file, err := os.Open(f.Name() + ".gif")
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-
-		files = append(files, &discordgo.File{
-			Name:   "video.gif",
-			Reader: file,
-		})
-
-		defer os.Remove(f.Name())
-	}
-
-	return files
 }
 
 func getRedditVideoFile(url string, guild *discordgo.Guild) []*discordgo.File {
@@ -239,7 +156,9 @@ func getTwitchClipFile(vodid string, guild *discordgo.Guild) []*discordgo.File {
 		log.Println(err)
 	}
 
-	out, err := exec.Command("./TwitchDownloaderCLI/TwitchDownloaderCLI", "clipdownload", "--collision", "overwrite", "--id", vodid, "-o", f.Name()).CombinedOutput()
+	downloadType := "clipdownload"
+
+	out, err := exec.Command("./TwitchDownloaderCLI/TwitchDownloaderCLI", downloadType, "--collision", "overwrite", "--id", vodid, "-o", f.Name()).CombinedOutput()
 	if err != nil {
 		log.Println(string(out))
 		log.Printf("Failed to download Twitch Clip id: %s: %s", vodid, err)
@@ -344,47 +263,6 @@ func getInstagramFiles(images []string, videos []string) ([]*discordgo.File, []*
 
 	wg.Wait()
 	return imageFiles, videoFiles
-}
-
-func getTikTokFile(url string, guild *discordgo.Guild) []*discordgo.File {
-	// Create a temp file starting with twitter and ending with .mp4
-	f, err := os.CreateTemp("", "tiktok*.mp4")
-	if err != nil {
-		log.Println(err)
-		return nil
-	}
-
-	err = downloadFile(f.Name(), url)
-	if err != nil {
-		log.Println(err)
-		return nil
-	}
-
-	file, err := os.Open(f.Name())
-	if err != nil {
-		log.Println(err)
-		return nil
-	}
-
-	// compress video if it is too big
-	compressVideo(file, guild, false)
-
-	file, err = os.Open(f.Name())
-	if err != nil {
-		log.Println(err)
-		return nil
-	}
-
-	videoFile := []*discordgo.File{
-		{
-			Name:   "video.mp4",
-			Reader: file,
-		},
-	}
-
-	defer os.Remove(f.Name())
-
-	return videoFile
 }
 
 func getVimeoFile(u string, guild *discordgo.Guild) []*discordgo.File {
