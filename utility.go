@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"net/http"
@@ -52,14 +53,22 @@ func redditFullname(url string) string {
 	return ""
 }
 
-func supressEmbed(s *discordgo.Session, m *discordgo.Message) {
+func setEmbedSuppression(s *discordgo.Session, m *discordgo.Message, suppress bool) {
+	var flags discordgo.MessageFlags
+	if suppress {
+		flags |= discordgo.MessageFlagsSuppressEmbeds
+	} else {
+		flags = m.Flags&^discordgo.MessageFlagsSuppressEmbeds | discordgo.MessageFlagsSuppressNotifications
+	}
+
 	_, err := s.ChannelMessageEditComplex(&discordgo.MessageEdit{
 		ID:      m.ID,
 		Channel: m.ChannelID,
-		Flags:   discordgo.MessageFlagsSuppressEmbeds,
+		Flags:   flags,
 	})
 	if err != nil {
-		return
+		log.Printf("Failed to suppress embed: %v", err)
+		log.Printf("Message link: https://discord.com/channels/%s/%s/%s", m.GuildID, m.ChannelID, m.ID)
 	}
 }
 
@@ -72,6 +81,209 @@ func getTwitchVodID(url *url.URL) string {
 		}
 	}
 	return ""
+}
+
+func getTwitchClipInfo(vodID string) (*twitchClipInfo, error) {
+	// Run the TwitchDownloaderCLI info command to get clip info
+	cmd := exec.Command("./TwitchDownloaderCLI/TwitchDownloaderCLI", "info", "--id", vodID, "--format", "raw")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Printf("Failed to get Twitch clip info for ID %s: %s", vodID, err)
+		log.Println(string(output))
+		return nil, err
+	}
+
+	// Split the output into lines
+	lines := strings.Split(string(output), "\n")
+
+	// Find the lines containing JSON responses
+	var jsonLines []string
+	for _, line := range lines {
+		// Check if line contains a JSON object starting with {"data":{"clip"
+		if strings.Contains(line, "{\"data\":{\"clip\"") {
+			jsonLines = append(jsonLines, line)
+		}
+	}
+
+	// We expect two JSON responses
+	if len(jsonLines) != 2 {
+		return nil, fmt.Errorf("unexpected number of JSON responses: got %d, want 2", len(jsonLines))
+	}
+
+	// Process the first JSON response (basic clip info)
+	type firstResponse struct {
+		Data struct {
+			Clip struct {
+				Title        string `json:"title"`
+				ThumbnailURL string `json:"thumbnailURL"`
+				CreatedAt    string `json:"createdAt"`
+				Curator      struct {
+					ID          string `json:"id"`
+					DisplayName string `json:"displayName"`
+					Login       string `json:"login"`
+				} `json:"curator"`
+				DurationSeconds int `json:"durationSeconds"`
+				Broadcaster     struct {
+					ID          string `json:"id"`
+					DisplayName string `json:"displayName"`
+					Login       string `json:"login"`
+				} `json:"broadcaster"`
+				VideoOffsetSeconds *int        `json:"videoOffsetSeconds"`
+				Video              interface{} `json:"video"`
+				ViewCount          int         `json:"viewCount"`
+				Game               struct {
+					ID          string `json:"id"`
+					DisplayName string `json:"displayName"`
+					BoxArtURL   string `json:"boxArtURL"`
+				} `json:"game"`
+			} `json:"clip"`
+		} `json:"data"`
+	}
+
+	// Process the second JSON response (playback info)
+	type secondResponse struct {
+		Data struct {
+			Clip struct {
+				ID                  string `json:"id"`
+				PlaybackAccessToken struct {
+					Signature string `json:"signature"`
+					Value     string `json:"value"`
+				} `json:"playbackAccessToken"`
+				VideoQualities []struct {
+					FrameRate float64 `json:"frameRate"`
+					Quality   string  `json:"quality"`
+					SourceURL string  `json:"sourceURL"`
+				} `json:"videoQualities"`
+			} `json:"clip"`
+		} `json:"data"`
+	}
+
+	var first firstResponse
+	var second secondResponse
+
+	// Parse the first JSON response
+	err = json.Unmarshal([]byte(jsonLines[0]), &first)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse first JSON response: %w", err)
+	}
+
+	// Parse the second JSON response
+	err = json.Unmarshal([]byte(jsonLines[1]), &second)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse second JSON response: %w", err)
+	}
+
+	// Create and populate the twitchClipInfo struct
+	clipInfo := &twitchClipInfo{
+		Title:              first.Data.Clip.Title,
+		ThumbnailURL:       first.Data.Clip.ThumbnailURL,
+		CreatedAt:          first.Data.Clip.CreatedAt,
+		DurationSeconds:    first.Data.Clip.DurationSeconds,
+		ViewCount:          first.Data.Clip.ViewCount,
+		VideoOffsetSeconds: first.Data.Clip.VideoOffsetSeconds,
+		ID:                 second.Data.Clip.ID,
+	}
+
+	// Handle the Video field separately - it could be null or an object
+	if videoVal, ok := first.Data.Clip.Video.(string); ok {
+		clipInfo.Video = &videoVal
+	}
+
+	// Copy nested struct fields individually to avoid type mismatch
+	clipInfo.Curator.ID = first.Data.Clip.Curator.ID
+	clipInfo.Curator.DisplayName = first.Data.Clip.Curator.DisplayName
+	clipInfo.Curator.Login = first.Data.Clip.Curator.Login
+
+	clipInfo.Broadcaster.ID = first.Data.Clip.Broadcaster.ID
+	clipInfo.Broadcaster.DisplayName = first.Data.Clip.Broadcaster.DisplayName
+	clipInfo.Broadcaster.Login = first.Data.Clip.Broadcaster.Login
+
+	clipInfo.Game.ID = first.Data.Clip.Game.ID
+	clipInfo.Game.DisplayName = first.Data.Clip.Game.DisplayName
+	clipInfo.Game.BoxArtURL = first.Data.Clip.Game.BoxArtURL
+
+	clipInfo.PlaybackAccessToken.Signature = second.Data.Clip.PlaybackAccessToken.Signature
+	clipInfo.PlaybackAccessToken.Value = second.Data.Clip.PlaybackAccessToken.Value
+
+	// Copy video qualities
+	for _, quality := range second.Data.Clip.VideoQualities {
+		clipInfo.VideoQualities = append(clipInfo.VideoQualities, struct {
+			FrameRate float64
+			Quality   string
+			SourceURL string
+		}{
+			FrameRate: quality.FrameRate,
+			Quality:   quality.Quality,
+			SourceURL: quality.SourceURL,
+		})
+	}
+
+	return clipInfo, nil
+}
+
+func getArazuVideoInfo(u *url.URL) (*arazuVideoInfo, error) {
+	// Create an HTTP client and make a request to the URL
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set a user agent to avoid being blocked
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+
+	// Make the request
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check if the response was successful
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("received non-200 response: %d", resp.StatusCode)
+	}
+
+	// Read the response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// Initialize video info with default values
+	info := &arazuVideoInfo{}
+
+	// Extract the title from h2 element with id="clip-title"
+	titleRegex := regexp.MustCompile(`<h2 id="clip-title">(.*?)</h2>`)
+	titleMatches := titleRegex.FindStringSubmatch(string(body))
+	if len(titleMatches) > 1 {
+		// Unescape HTML entities in title (e.g., &#39; to ')
+		info.Title = html.UnescapeString(titleMatches[1])
+	}
+	
+	// Extract the channel name from the anchor tag
+	channelRegex := regexp.MustCompile(`<a data-umami-event="channel_click".*?href="/\?channel=(.*?)&`)
+	channelMatches := channelRegex.FindStringSubmatch(string(body))
+	if len(channelMatches) > 1 {
+		// Unescape HTML entities in channel name
+		info.Channel = html.UnescapeString(channelMatches[1])
+	}
+
+	// Extract the video URL from the poster attribute and replace .webp with .mp4
+	posterRegex := regexp.MustCompile(`<video id="video-player".*?poster="(https://cdn\.arazu\.io/.*?\.webp)"`)
+	posterMatches := posterRegex.FindStringSubmatch(string(body))
+	if len(posterMatches) > 1 {
+		// Replace .webp with .mp4 to get the video URL
+		posterURL := posterMatches[1]
+		info.URL = strings.Replace(posterURL, ".webp", ".mp4", 1)
+	}
+
+	// Return an error if we couldn't find any information
+	if info.Title == "" && info.URL == "" {
+		return nil, fmt.Errorf("could not extract title or image URL from page")
+	}
+
+	return info, nil
 }
 
 func getRedditVideoLink(u *url.URL, auth redditAuth) *url.URL {
@@ -134,14 +346,15 @@ func followRedirect(u *url.URL, auth redditAuth) (*url.URL, error) {
 func compressVideo(file *os.File, guild *discordgo.Guild, force bool) {
 	var maxSize int
 
-	if guild.PremiumTier == 0 {
-		maxSize = 8
-	} else if guild.PremiumTier == 1 {
-		maxSize = 25
-	} else if guild.PremiumTier == 2 {
-		maxSize = 50
-	} else if guild.PremiumTier == 3 {
-		maxSize = 100
+	switch guild.PremiumTier {
+	case 0:
+		maxSize = 10 // 10 MB
+	case 1:
+		maxSize = 10 // 10 MB
+	case 2:
+		maxSize = 50 // 50 MB
+	case 3:
+		maxSize = 100 // 100 MB
 	}
 
 	// check if video is smaller than max size

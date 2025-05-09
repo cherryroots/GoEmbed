@@ -18,15 +18,15 @@ func handleTwitter(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 	postUser := strings.Split(u.Path, "/")[1]
 	_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 		Content:    fmt.Sprintf("[Tweet • %s](%s)", postUser, u.String()),
-		Components: []discordgo.MessageComponent{deleteMessageActionRow},
+		Components: []discordgo.MessageComponent{messageActionRow},
 		Reference:  m.Reference(),
 	})
 	if err != nil {
-		log.Println(err)
+		log.Printf("Failed to send twitter post: %v", err)
 		return
 	}
-	time.Sleep(time.Second * 1)
-	supressEmbed(s, m)
+	time.Sleep(time.Millisecond * 250)
+	setEmbedSuppression(s, m, true)
 }
 
 func handleThreads(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
@@ -38,67 +38,69 @@ func handleThreads(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 	postUser = strings.Replace(postUser, "@", "", -1)
 	_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 		Content:    fmt.Sprintf("[Threads • %s](%s)", postUser, u.String()),
-		Components: []discordgo.MessageComponent{deleteMessageActionRow},
+		Components: []discordgo.MessageComponent{messageActionRow},
 		Reference:  m.Reference(),
 	})
 	if err != nil {
-		log.Println(err)
+		log.Printf("Failed to send threads post: %v", err)
 		return
 	}
-	time.Sleep(time.Second * 1)
-	supressEmbed(s, m)
+	time.Sleep(time.Millisecond * 250)
+	setEmbedSuppression(s, m, true)
 }
 
 func handleBsky(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 	if !strings.Contains(u.Path, "/post/") {
 		return
 	}
-	u.Host = "bskyx.net"
+	u.Host = "bskyx.app"
 	postUser := strings.Split(u.Path, "/")[2]
 	postUser = strings.Replace(postUser, ".bsky.social", "", -1)
 	_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 		Content:    fmt.Sprintf("[Bsky • %s](%s)", postUser, u.String()),
-		Components: []discordgo.MessageComponent{deleteMessageActionRow},
+		Components: []discordgo.MessageComponent{messageActionRow},
 		Reference:  m.Reference(),
 	})
 	if err != nil {
-		log.Println(err)
+		log.Printf("Failed to send bsky post: %v", err)
 		return
 	}
-	time.Sleep(time.Second * 1)
-	supressEmbed(s, m)
+	time.Sleep(time.Millisecond * 250)
+	setEmbedSuppression(s, m, true)
 }
 
 func handleInstagram(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
-	u.Host = "instagramez.com"
+	if !strings.Contains(u.Path, "/p/") && !strings.Contains(u.Path, "/reel/") && !strings.Contains(u.Path, "/reels/") {
+		return
+	}
+	u.Host = "ddinstagram.com"
 	_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 		Content:    fmt.Sprintf("[Instagram](%s)", u.String()),
-		Components: []discordgo.MessageComponent{deleteMessageActionRow},
+		Components: []discordgo.MessageComponent{messageActionRow},
 		Reference:  m.Reference(),
 	})
 	if err != nil {
-		log.Println(err)
+		log.Printf("Failed to send instagram post: %v", err)
 		return
 	}
-	time.Sleep(time.Second * 1)
-	supressEmbed(s, m)
+	time.Sleep(time.Millisecond * 250)
+	setEmbedSuppression(s, m, true)
 }
 
 func handleTiktok(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 	u.Host = "a.tnktok.com"
-	postUser := strings.Split(u.Path, "/")[1]
-	postUser = strings.Replace(postUser, "@", "", -1)
+	postUser := strings.Split(u.Path, "/")[1][1:]
 	_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 		Content:    fmt.Sprintf("[TikTok • %s](%s)", postUser, u.String()),
-		Components: []discordgo.MessageComponent{deleteMessageActionRow},
+		Components: []discordgo.MessageComponent{messageActionRow},
 		Reference:  m.Reference(),
 	})
 	if err != nil {
-		log.Println(err)
+		log.Printf("Failed to send tiktok post: %v", err)
 		return
 	}
-	time.Sleep(time.Second * 1)
-	supressEmbed(s, m)
+	time.Sleep(time.Millisecond * 250)
+	setEmbedSuppression(s, m, true)
 }
 
 func handleReddit(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
@@ -150,7 +152,7 @@ func handleReddit(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 		if len(videoFile) == 0 {
 			_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 				Content:    "Could not fetch post. Please retry",
-				Components: []discordgo.MessageComponent{deleteMessageActionRow},
+				Components: []discordgo.MessageComponent{messageActionRow},
 				Reference:  m.Reference(),
 			})
 			if err != nil {
@@ -161,7 +163,7 @@ func handleReddit(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 
 		_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 			Files:      videoFile,
-			Components: []discordgo.MessageComponent{deleteMessageActionRow},
+			Components: []discordgo.MessageComponent{messageActionRow},
 			Reference:  m.Reference(),
 		})
 		if err != nil {
@@ -178,22 +180,29 @@ func handleReddit(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 		if len(videoFile) == 0 {
 			_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 				Content:    "Could not fetch post. Please retry",
-				Components: []discordgo.MessageComponent{deleteMessageActionRow},
+				Components: []discordgo.MessageComponent{messageActionRow},
 				Reference:  m.Reference(),
 			})
 			if err != nil {
-				log.Println(err)
+				log.Printf("Failed to get reddit video file: %v", err)
 			}
 			return
 		}
 
-		_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+		info, err := getTwitchClipInfo(vodID)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		_, err = s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+			Content:    fmt.Sprintf("%s playing %s • %s\n%ds • %d views", info.Broadcaster.DisplayName, info.Game.DisplayName, info.Title, info.DurationSeconds, info.ViewCount),
 			Files:      videoFile,
-			Components: []discordgo.MessageComponent{deleteMessageActionRow},
+			Components: []discordgo.MessageComponent{messageActionRow},
 			Reference:  m.Reference(),
 		})
 		if err != nil {
-			log.Println(err)
+			log.Printf("Failed to send twitch clip post: %v", err)
 		}
 	}
 }
@@ -213,24 +222,51 @@ func handleTwitch(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 	if len(videoFile) == 0 {
 		_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 			Content:    "Could not fetch post. Please retry",
-			Components: []discordgo.MessageComponent{deleteMessageActionRow},
+			Components: []discordgo.MessageComponent{messageActionRow},
 			Reference:  m.Reference(),
 		})
 		if err != nil {
-			log.Println(err)
+			log.Printf("Failed to fetch twitch clip: %v", err)
 		}
+		return
+	}
+
+	info, err := getTwitchClipInfo(vodID)
+	if err != nil {
 		return
 	}
 
 	// send message and handle filesize error
 	_, err = s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+		Content:    fmt.Sprintf("%s playing %s • %s\n%ds • %d views", info.Broadcaster.DisplayName, info.Game.DisplayName, info.Title, info.DurationSeconds, info.ViewCount),
 		Files:      videoFile,
-		Components: []discordgo.MessageComponent{deleteMessageActionRow},
+		Components: []discordgo.MessageComponent{messageActionRow},
 		Reference:  m.Reference(),
 	})
 	if err != nil {
-		log.Println(err)
+		log.Printf("Twitch file too large: %v", err)
 	}
+	time.Sleep(time.Millisecond * 250)
+	setEmbedSuppression(s, m, true)
+}
+
+func handleArazu(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
+	info, err := getArazuVideoInfo(u)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	_, err = s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+		Content:    fmt.Sprintf("[Arazu link](<%s>) [CDN](%s)\n%s • %s", u.String(), info.URL, info.Channel, info.Title),
+		Components: []discordgo.MessageComponent{messageActionRow},
+		Reference:  m.Reference(),
+	})
+	if err != nil {
+		log.Printf("Failed to send arazu post: %v", err)
+		return
+	}
+	time.Sleep(time.Millisecond * 250)
+	setEmbedSuppression(s, m, true)
 }
 
 func handleVimeo(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
@@ -245,11 +281,11 @@ func handleVimeo(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 	if len(videoFile) == 0 {
 		_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 			Content:    "Could not fetch post. Please retry",
-			Components: []discordgo.MessageComponent{deleteMessageActionRow},
+			Components: []discordgo.MessageComponent{messageActionRow},
 			Reference:  m.Reference(),
 		})
 		if err != nil {
-			log.Println(err)
+			log.Printf("Failed to get vimeo file: %v", err)
 		}
 		return
 	}
@@ -257,10 +293,10 @@ func handleVimeo(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 	// send message and handle filesize error
 	_, err = s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 		Files:      videoFile,
-		Components: []discordgo.MessageComponent{deleteMessageActionRow},
+		Components: []discordgo.MessageComponent{messageActionRow},
 		Reference:  m.Reference(),
 	})
 	if err != nil {
-		log.Println(err)
+		log.Printf("Failed to send vimeo post: %v", err)
 	}
 }

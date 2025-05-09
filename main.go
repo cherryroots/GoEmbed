@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/url"
 	"os"
@@ -20,13 +19,6 @@ var deleteMessageButton = discordgo.Button{
 	Emoji:    &discordgo.ComponentEmoji{Name: "❌"},
 }
 
-var reduceButton = discordgo.Button{
-	Label:    "Reduce",
-	Style:    discordgo.PrimaryButton,
-	CustomID: "reduce",
-	Emoji:    &discordgo.ComponentEmoji{Name: "🔻"},
-}
-
 var retryButton = discordgo.Button{
 	Label:    "Retry",
 	Style:    discordgo.PrimaryButton,
@@ -34,12 +26,15 @@ var retryButton = discordgo.Button{
 	Emoji:    &discordgo.ComponentEmoji{Name: "🔁"},
 }
 
-var deleteMessageActionRow = discordgo.ActionsRow{
-	Components: []discordgo.MessageComponent{retryButton, deleteMessageButton},
+var unsuppressButton = discordgo.Button{
+	Label:    "Unsuppress",
+	Style:    discordgo.PrimaryButton,
+	CustomID: "unsuppress",
+	Emoji:    &discordgo.ComponentEmoji{Name: "🌟"},
 }
 
-var instagramActionRow = discordgo.ActionsRow{
-	Components: []discordgo.MessageComponent{reduceButton, retryButton, deleteMessageButton},
+var messageActionRow = discordgo.ActionsRow{
+	Components: []discordgo.MessageComponent{retryButton, unsuppressButton, deleteMessageButton},
 }
 
 func init() {
@@ -116,8 +111,8 @@ func handleURL(s *discordgo.Session, m *discordgo.Message, link string) {
 		return
 	}
 
-	if u.Host == "bsky.app" || u.Host == "www.bsky.app" {
-		handleBsky(s, m, u)
+	if u.Host == "arazu.io" || u.Host == "www.arazu.io" {
+		handleArazu(s, m, u)
 		return
 	}
 
@@ -187,7 +182,6 @@ func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 					return
 				}
 			}
-			// get links from message
 			if msg.Author.ID != i.Member.User.ID {
 				return
 			}
@@ -198,87 +192,22 @@ func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			}
 			s.ChannelMessageDelete(i.ChannelID, i.Message.ID)
 		}
-		if i.MessageComponentData().CustomID == "reduce" {
+		if i.MessageComponentData().CustomID == "unsuppress" {
 			msg, err := s.ChannelMessage(i.ChannelID, i.Message.MessageReference.MessageID)
 			if err != nil {
 				if err.(*discordgo.RESTError).Response.StatusCode == 404 {
 					return
 				}
 			}
-
-			minValues := 1
-			attachmentLen := len(i.Message.Attachments)
-
-			attachmentSelectMenu := discordgo.SelectMenu{
-				Placeholder: "Select an attachment",
-				MinValues:   &minValues,
-				MaxValues:   attachmentLen,
-				CustomID:    "attachment_select_menu",
-				Options:     []discordgo.SelectMenuOption{},
+			if msg.Author.ID != i.Member.User.ID {
+				return
 			}
+			setEmbedSuppression(s, msg, false)
 
-			for count := range i.Message.Attachments {
-				attachmentSelectMenu.Options = append(attachmentSelectMenu.Options, discordgo.SelectMenuOption{
-					Label: fmt.Sprint(count + 1),
-					Value: fmt.Sprint(count),
-				})
-			}
-
-			reduceActionRow := discordgo.ActionsRow{
-				Components: []discordgo.MessageComponent{attachmentSelectMenu},
-			}
-
-			if msg.Author.ID == i.Member.User.ID {
-				err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-					Type: discordgo.InteractionResponseUpdateMessage,
-					Data: &discordgo.InteractionResponseData{
-						Components: []discordgo.MessageComponent{reduceActionRow, deleteMessageActionRow},
-					},
-				})
-				if err != nil {
-					log.Println(err)
-				}
-			}
+			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseUpdateMessage,
+			})
 		}
-		if i.MessageComponentData().CustomID == "attachment_select_menu" {
-			msg, err := s.ChannelMessage(i.ChannelID, i.Message.MessageReference.MessageID)
-			if err != nil {
-				if err.(*discordgo.RESTError).Response.StatusCode == 404 {
-					return
-				}
-			}
 
-			files := make([]*discordgo.File, 0)
-			newAttachments := make([]*discordgo.MessageAttachment, 0)
-
-			for count, attachment := range i.Message.Attachments {
-				for _, value := range i.MessageComponentData().Values {
-					if value == fmt.Sprint(count) {
-						newAttachments = append(newAttachments, attachment)
-					}
-				}
-			}
-
-			if msg.Author.ID == i.Member.User.ID {
-				_, err = s.ChannelMessageEditComplex(&discordgo.MessageEdit{
-					ID:          i.Message.ID,
-					Channel:     i.Message.ChannelID,
-					Attachments: &newAttachments,
-					Files:       files,
-				})
-				if err != nil {
-					return
-				}
-				err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-					Type: discordgo.InteractionResponseUpdateMessage,
-					Data: &discordgo.InteractionResponseData{
-						Components: []discordgo.MessageComponent{instagramActionRow},
-					},
-				})
-				if err != nil {
-					return
-				}
-			}
-		}
 	}
 }
