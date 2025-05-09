@@ -277,6 +277,13 @@ func getArazuVideoInfo(u *url.URL) (*arazuVideoInfo, error) {
 		posterURL := posterMatches[1]
 		info.URL = strings.Replace(posterURL, ".webp", ".mp4", 1)
 	}
+	
+	// Extract the Reddit link
+	redditRegex := regexp.MustCompile(`<a data-umami-event="reddit_click".*?href="(https://old\.reddit\.com/.*?/)"`)
+	redditMatches := redditRegex.FindStringSubmatch(string(body))
+	if len(redditMatches) > 1 {
+		info.RedditURL = redditMatches[1]
+	}
 
 	// Return an error if we couldn't find any information
 	if info.Title == "" && info.URL == "" {

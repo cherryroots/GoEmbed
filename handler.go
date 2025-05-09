@@ -256,8 +256,19 @@ func handleArazu(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 		log.Println(err)
 		return
 	}
+	// Build content string with or without Reddit link
+	content := fmt.Sprintf("[Arazu link](<%s>) [•](%s)", u.String(), info.URL)
+
+	// Add Reddit link if available
+	if info.RedditURL != "" {
+		content += fmt.Sprintf(" [LSF](<%s>)", info.RedditURL)
+	}
+
+	// Add channel and title info
+	content += fmt.Sprintf("\n%s • %s", info.Channel, info.Title)
+
 	_, err = s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-		Content:    fmt.Sprintf("[Arazu link](<%s>) [CDN](%s)\n%s • %s", u.String(), info.URL, info.Channel, info.Title),
+		Content:    content,
 		Components: []discordgo.MessageComponent{messageActionRow},
 		Reference:  m.Reference(),
 	})

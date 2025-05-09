@@ -49,7 +49,8 @@ type twitchClipInfo struct {
 }
 
 type arazuVideoInfo struct {
-	Title   string
-	URL     string
-	Channel string
+	Title     string
+	URL       string
+	Channel   string
+	RedditURL string
 }
