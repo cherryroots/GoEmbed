@@ -73,7 +73,7 @@ func handleInstagram(s *discordgo.Session, m *discordgo.Message, u *url.URL) {
 	if !strings.Contains(u.Path, "/p/") && !strings.Contains(u.Path, "/reel/") && !strings.Contains(u.Path, "/reels/") {
 		return
 	}
-	u.Host = "ddinstagram.com"
+	u.Host = "vxinstagram.com"
 	_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 		Content:    fmt.Sprintf("[Instagram](%s)", u.String()),
 		Components: []discordgo.MessageComponent{messageActionRow},
